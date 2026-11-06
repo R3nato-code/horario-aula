@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light;
+
+  /* Superfícies */
+  --papel: #f4f3ee;
+  --superficie: #fbfaf7;
+  --superficie-elevada: #ffffff;
+  --superficie-verde: #e6ece2;
+  --superficie-areia: #f2ebdc;
+
+  /* Texto */
+  --tinta: #232a27;
+  --tinta-media: #48534d;
+  --tinta-suave: #6f7a73;
+  --tinta-inversa: #f7f7f2;
+
+  /* Linhas */
+  --linha: #d8dcd4;
+  --linha-forte: #b7beb4;
+
+  /* Paleta pastel */
+  --verde: #dfe8dc;
+  --verde-medio: #c2d2be;
+  --verde-forte: #5e7b67;
+  --azul: #dde6ee;
+  --azul-forte: #587089;
+  --areia: #efe4cd;
+  --areia-forte: #8a7347;
+  --argila: #eedbd4;
+  --argila-forte: #96695c;
+  --lilas: #e6e1ea;
+  --lilas-forte: #6f6479;
+
+  /* Estados */
+  --erro: #8f4a44;
+  --erro-fundo: #f4e1dd;
+  --sucesso: #4b6854;
+  --sucesso-fundo: #e2ebe0;
+  --aviso: #7c6435;
+  --aviso-fundo: #f5ecd7;
+  --info: #4f687e;
+  --info-fundo: #e3ebf2;
+  --foco: #3f5f70;
+
+  /* Tipografia */
+  --fonte-texto: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --fonte-titulo: Georgia, "Times New Roman", serif;
+
+  /* Espaçamento */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 24px;
+  --e6: 32px;
+  --e7: 48px;
+  --e8: 64px;
+
+  /* Estrutura */
+  --largura-barra: 244px;
+  --largura-conteudo: 1240px;
+  --altura-topo: 64px;
+}

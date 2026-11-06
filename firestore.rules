@@ -1,0 +1,94 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function mesmoUsuario(uid) {
+      return autenticado() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------
+    // Usuários — perfil criado pelo próprio usuário.
+    // ---------------------------------------------------------------
+    match /users/{uid} {
+      allow get: if mesmoUsuario(uid);
+      allow list: if false;
+      allow delete: if false;
+
+      // Bootstrap do perfil sem Cloud Functions publicadas. O cliente só pode
+      // criar o PRÓPRIO perfil e somente com o papel padrão 'aluno'. Papéis
+      // administrativos continuam exclusivos de operação server-side.
+      allow create: if mesmoUsuario(uid)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'role', 'updatedAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.role == 'aluno'
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.updatedAt == request.time;
+
+      // O cliente nunca altera papel, e-mail ou qualquer campo de autorização.
+      // A edição de perfil é responsabilidade do backend.
+      allow update: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Catálogo escolar e aulas — Leitura autenticada.
+    // ---------------------------------------------------------------
+    match /professores/{id} { allow read: if autenticado(); allow write: if false; }
+    match /disciplinas/{id} { allow read: if autenticado(); allow write: if false; }
+    match /turmas/{id} { allow read: if autenticado(); allow write: if false; }
+    match /aulas/{id} { allow read: if autenticado(); allow write: if false; }
+    match /configuracao/{id} { allow read: if autenticado(); allow write: if false; }
+    // Reservada a LAC-23/LAC-24: permanece totalmente fechada.
+    match /salas/{id} { allow read, write: if false; }
+
+    // ---------------------------------------------------------------
+    // Notificações — cada usuário lê e marca apenas as próprias.
+    // ---------------------------------------------------------------
+    match /notificacoes/{id} {
+      allow get, list: if mesmoUsuario(resource.data.uid);
+      allow create, delete: if false;
+
+      // O destinatário só pode marcar como lida. Todos os demais campos
+      // (uid, tipo, turmaIds, criadoEm, expiraEm etc.) ficam imutáveis.
+      allow update: if mesmoUsuario(resource.data.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lida', 'lidaEm'
+        ])
+        && request.resource.data.lida == true
+        && request.resource.data.lidaEm == request.time
+        && resource.data.lida == false;
+    }
+
+    // ---------------------------------------------------------------
+    // Favoritos — doc ID `{uid}_{turmaId}`.
+    // ---------------------------------------------------------------
+    match /favoritos/{favoritoId} {
+      allow get, list: if mesmoUsuario(resource.data.uid);
+      allow update: if false;
+      allow delete: if mesmoUsuario(resource.data.uid);
+
+      allow create: if mesmoUsuario(request.resource.data.uid)
+        && request.resource.data.keys().hasOnly(['uid', 'turmaId', 'criadoEm'])
+        && favoritoId == request.auth.uid + '_' + request.resource.data.turmaId
+        && request.resource.data.turmaId is string
+        && request.resource.data.criadoEm == request.time
+        && exists(
+          /databases/$(database)/documents/turmas/$(request.resource.data.turmaId)
+        );
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

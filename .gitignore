@@ -1,0 +1,18 @@
+﻿# Dependencias
+node_modules/
+functions/node_modules/
+dist/
+functions/lib/
+.firebase/
+.env
+.env.*
+!.env.example
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+*.log
+*.tsbuildinfo
+coverage/
+*.pem
+*.local
+.DS_Store
+Thumbs.db
