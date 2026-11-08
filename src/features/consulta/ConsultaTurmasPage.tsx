@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { CabecalhoPagina } from '@/components/ui/CabecalhoPagina';
 import { EstadoCarregando, EstadoErro, EstadoVazio } from '@/components/ui/Estados';
 import { Icone } from '@/components/Icone';
-import { Alerta } from '@/components/ui/Alerta';
 import { useConsulta } from '@/app/useConsulta';
 import { useServicos } from '@/app/ContextoServicos';
 import { useFavoritos } from '@/app/ContextoFavoritos';
@@ -127,18 +126,6 @@ export function ConsultaTurmasPage() {
               {turmasFiltradas.length} de {turmasAtivas.length} turmas ativas
             </p>
           </div>
-
-          {favoritos.length > 0 ? (
-            <div className="secao-catalogo">
-              <Alerta tipo="info" titulo="Suas turmas favoritas">
-                Você recebe notificações internas quando uma aula dessas turmas é alterada.
-                <span className="texto-pequeno">
-                  {' '}
-                  {favoritos.length} turma(s) favorita(s).
-                </span>
-              </Alerta>
-            </div>
-          ) : null}
 
           {turmasFiltradas.length === 0 ? (
             <EstadoVazio

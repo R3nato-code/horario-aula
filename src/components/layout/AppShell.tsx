@@ -3,7 +3,6 @@ import { Icone, type NomeIcone } from '@/components/Icone';
 import { SeloPapel } from '@/components/ui/Selos';
 import { useAutenticacao } from '@/app/ContextoAutenticacao';
 import { useFavoritos } from '@/app/ContextoFavoritos';
-import { useNotificacoes } from '@/app/ContextoNotificacoes';
 import { useServicos } from '@/app/ContextoServicos';
 import { useToast } from '@/app/ContextoToast';
 import { rolarAoTopo, rotaAtiva, useRotaAtual } from '@/app/roteamento';
@@ -35,7 +34,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { usuario, sair } = useAutenticacao();
   const { modo, avisoConfiguracao } = useServicos();
   const { favoritos } = useFavoritos();
-  const { naoLidas } = useNotificacoes();
   const { notificar } = useToast();
   const pwa = useAtualizacaoPwa();
   const [menuAberto, setMenuAberto] = useState(false);
@@ -87,13 +85,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           icone: 'estrela',
           ativo: (atual) => rotaAtiva(atual, '/favoritos'),
           contagem: favoritos.length,
-        },
-        {
-          para: '/notificacoes',
-          rotulo: 'Notificações',
-          icone: 'sino',
-          ativo: (atual) => rotaAtiva(atual, '/notificacoes'),
-          contagem: naoLidas,
         },
       ],
     },
@@ -277,25 +268,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="topo__fim">
-            <a
-              className="botao botao--icone"
-              href="#/notificacoes"
-              aria-label={
-                naoLidas > 0 ? `Notificações, ${naoLidas} não lida(s)` : 'Notificações'
-              }
-              style={{ position: 'relative' }}
-            >
-              <Icone nome="sino" tamanho={19} />
-              {naoLidas > 0 ? (
-                <span
-                  className="selo selo--contagem"
-                  style={{ position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, padding: '0 4px', fontSize: '0.62rem' }}
-                >
-                  {naoLidas > 99 ? '99+' : naoLidas}
-                </span>
-              ) : null}
-            </a>
-
             <div className="usuario-topo">
               <span className="avatar-inicial" aria-hidden="true">
                 {iniciaisDoNome(usuario.nome)}

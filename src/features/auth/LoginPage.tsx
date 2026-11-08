@@ -59,8 +59,8 @@ export function LoginPage() {
             Organização escolar em uma única consulta.
           </h1>
           <p className="login__resumo">
-            Horários das 14 turmas do período da manhã, gestão administrativa, favoritos,
-            notificações e consulta assistida por IA sobre os dados da escola.
+            Horários das 14 turmas do período da manhã, gestão administrativa, favoritos
+            e consulta assistida por IA sobre os dados da escola.
           </p>
 
           <div className="login__modulos" aria-label="Módulos do sistema">
@@ -74,7 +74,7 @@ export function LoginPage() {
             </div>
             <div className="login__modulo">
               <span className="login__modulo-numero">03</span>
-              <span>Histórico de alterações e notificações internas</span>
+              <span>Histórico de alterações</span>
             </div>
           </div>
         </div>

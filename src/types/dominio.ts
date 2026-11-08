@@ -1,8 +1,8 @@
 /** Contratos de domínio do front-end.
  *
- * Observação: campos como identidade de aula, sala e estrutura de notificações
- * dependem de lacunas ainda abertas (LAC-02, LAC-08, LAC-13, LAC-23).
- * Este arquivo reflete apenas o que já está documentado na arquitetura.
+ * Observação: campos como identidade de aula e sala dependem de lacunas
+ * ainda abertas (LAC-02, LAC-08, LAC-13, LAC-23). Este arquivo reflete
+ * apenas o que já está documentado na arquitetura.
  */
 
 export type Papel = 'gestor' | 'admin' | 'professor' | 'aluno';
@@ -118,19 +118,6 @@ export interface RegistroHistorico {
   responsavelNome: string;
   responsavelEmail?: string;
   timestamp: string;
-}
-
-export interface Notificacao {
-  id: string;
-  uid: string;
-  turmaId: string;
-  titulo: string;
-  mensagem: string;
-  lida: boolean;
-  criadoEm: string;
-  agrupamento?: {
-    totalAulas: number;
-  };
 }
 
 export interface Favorito {

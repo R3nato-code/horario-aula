@@ -31,7 +31,7 @@ export function FavoritosPage() {
       <CabecalhoPagina
         sobretitulo="Minha área"
         titulo="Favoritos"
-        descricao="Turmas favoritas deste usuário. Alterações em aulas dessas turmas geram notificações internas."
+        descricao="Turmas favoritas deste usuário."
         acoes={
           <a className="botao botao--fantasma" href="#/consulta">
             <Icone nome="calendario" tamanho={15} />
@@ -49,7 +49,7 @@ export function FavoritosPage() {
         turmas.length === 0 ? (
           <EstadoVazio
             titulo="Nenhuma turma favorita"
-            texto="Favorite uma turma na consulta de horários para acompanhar alterações e receber notificações."
+            texto="Favorite uma turma na consulta de horários para acompanhar alterações."
             acao={
               <a className="botao botao--pequeno" href="#/consulta">
                 Escolher turma

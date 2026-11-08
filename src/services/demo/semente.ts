@@ -120,7 +120,6 @@ export function criarBancoDemonstracao(): BancoDemo {
     aulas,
     configuracao: configuracaoInicial(),
     historico: [],
-    notificacoes: [],
     favoritos,
     geradoEm: agora,
   };

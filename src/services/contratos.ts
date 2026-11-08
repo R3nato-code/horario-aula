@@ -6,7 +6,6 @@ import type {
   DiaSemana,
   Favorito,
   Modalidade,
-  Notificacao,
   Papel,
   RegistroHistorico,
   TipoCadastro,
@@ -130,9 +129,6 @@ export interface ServicoEscola {
   ): Promise<Catalogo>;
   excluirCadastro(tipo: TipoCadastro, id: string, responsavel: Usuario): Promise<Catalogo>;
   listarHistorico(filtro?: FiltroHistorico): Promise<RegistroHistorico[]>;
-  listarNotificacoes(uid: string): Promise<Notificacao[]>;
-  marcarNotificacaoLida(uid: string, notificacaoId: string): Promise<void>;
-  marcarTodasNotificacoesLidas(uid: string): Promise<void>;
   listarFavoritos(uid: string): Promise<Favorito[]>;
   alternarFavorito(uid: string, turmaId: string): Promise<Favorito[]>;
   listarTurmas(): Promise<Turma[]>;

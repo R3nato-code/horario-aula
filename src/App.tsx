@@ -3,7 +3,6 @@ import { AppShell } from '@/components/layout/AppShell';
 import { EstadoCarregando } from '@/components/ui/Estados';
 import { useAutenticacao } from '@/app/ContextoAutenticacao';
 import { useFavoritos, ProvedorFavoritos } from '@/app/ContextoFavoritos';
-import { useNotificacoes, ProvedorNotificacoes } from '@/app/ContextoNotificacoes';
 import { useToast } from '@/app/ContextoToast';
 import { substituirRota, useRotaAtual } from '@/app/roteamento';
 import { podeAdministrar, ehGestor } from '@/lib/constantes';
@@ -13,7 +12,6 @@ import { TurmaHorarioPage } from '@/features/consulta/TurmaHorarioPage';
 import { ConsultaProfessoresPage } from '@/features/consulta/ConsultaProfessoresPage';
 import { ProfessorHorarioPage } from '@/features/consulta/ProfessorHorarioPage';
 import { FavoritosPage } from '@/features/favoritos/FavoritosPage';
-import { NotificacoesPage } from '@/features/notificacoes/NotificacoesPage';
 import { PainelPage } from '@/features/painel/PainelPage';
 import {
   DisciplinasAdminPage,
@@ -84,7 +82,6 @@ function Rotas() {
   }
 
   if (segmentos[0] === 'favoritos' && segmentos.length === 1) return <FavoritosPage />;
-  if (segmentos[0] === 'notificacoes' && segmentos.length === 1) return <NotificacoesPage />;
 
   if (segmentos[0] === 'painel') {
     if (!administra) return <AcessoNegadoPage />;
@@ -111,14 +108,12 @@ function Rotas() {
 function ConteudoComSessao() {
   const { notificar } = useToast();
   const { carregando: carregandoFavoritos, erro: erroFavoritos } = useFavoritos();
-  const { carregando: carregandoNotificacoes, erro: erroNotificacoes } = useNotificacoes();
 
   useEffect(() => {
     if (erroFavoritos) notificar('erro', `Favoritos: ${erroFavoritos}`);
-    if (erroNotificacoes) notificar('erro', `Notificações: ${erroNotificacoes}`);
-  }, [erroFavoritos, erroNotificacoes, notificar]);
+  }, [erroFavoritos, notificar]);
 
-  if (carregandoFavoritos || carregandoNotificacoes) {
+  if (carregandoFavoritos) {
     return <TelaCarregando />;
   }
 
@@ -140,13 +135,11 @@ function ConteudoAutenticado() {
     return <LoginPage />;
   }
 
-  // Favoritos e notificações são por usuário: os provedores só existem
-  // durante uma sessão autenticada, o que descarta o estado ao sair.
+  // Favoritos são por usuário: o provedor só existe durante uma sessão
+  // autenticada, o que descarta o estado ao sair.
   return (
     <ProvedorFavoritos>
-      <ProvedorNotificacoes>
-        <ConteudoComSessao />
-      </ProvedorNotificacoes>
+      <ConteudoComSessao />
     </ProvedorFavoritos>
   );
 }

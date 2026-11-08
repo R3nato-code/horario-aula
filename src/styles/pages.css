@@ -1337,69 +1337,6 @@
   }
 }
 
-/* Notificações ------------------------------------------------------------ */
-.notificacao {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--e3);
-  padding: var(--e4);
-  border: 1px solid var(--linha);
-  border-left: 3px solid var(--linha-forte);
-  background-color: var(--superficie-elevada);
-}
-
-.notificacao + .notificacao {
-  margin-top: var(--e2);
-}
-
-.notificacao--nao-lida {
-  border-left-color: var(--azul-forte);
-  background-color: #f6f9fb;
-}
-
-.notificacao__marca {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  margin-top: 7px;
-  border: 1px solid var(--linha-forte);
-  background-color: transparent;
-}
-
-.notificacao--nao-lida .notificacao__marca {
-  border-color: var(--azul-forte);
-  background-color: var(--azul-forte);
-}
-
-.notificacao__corpo {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.notificacao__titulo {
-  font-size: 0.88rem;
-  font-weight: 650;
-}
-
-.notificacao__texto {
-  margin-top: 2px;
-  color: var(--tinta-media);
-  font-size: 0.82rem;
-}
-
-.notificacao__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--e2);
-  margin-top: 6px;
-  color: var(--tinta-suave);
-  font-size: 0.72rem;
-}
-
-.notificacao__acoes {
-  flex: 0 0 auto;
-}
 
 /* Assistente -------------------------------------------------------------- */
 .assistente {

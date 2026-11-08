@@ -5,7 +5,6 @@ import type {
   ConfiguracaoHorarios,
   Disciplina,
   Favorito,
-  Notificacao,
   Professor,
   RegistroHistorico,
   TipoCadastro,
@@ -209,23 +208,6 @@ export class EscolaDemo implements ServicoEscola {
     };
     this.banco.historico.push(registro);
 
-    const horario = horarioDoPeriodo(this.banco.configuracao, atual.periodo);
-    this.banco.favoritos
-      .filter((favorito) => favorito.turmaId === turma.id)
-      .forEach((favorito) => {
-        this.banco.notificacoes.push({
-          id: gerarId('notif'),
-          uid: favorito.uid,
-          turmaId: turma.id,
-          titulo: 'Aula alterada',
-          mensagem: `Uma aula da turma ${turma.nome} foi alterada: ${nomeDoDia(
-            atual.diaSemana,
-          )}, ${atual.periodo}ª aula (${horario.inicio}–${horario.fim}).`,
-          lida: false,
-          criadoEm: agora,
-        });
-      });
-
     this.persistir();
     return clonar(atual);
   }
@@ -391,28 +373,6 @@ export class EscolaDemo implements ServicoEscola {
       });
     }
 
-    const mensagem = aulaDestino
-      ? `Duas aulas da turma ${turma.nome} foram trocadas de posição: ${nomeDoDia(
-          origem.diaSemana,
-        )}, ${origem.periodo}ª aula ↔ ${nomeDoDia(destino.diaSemana)}, ${destino.periodo}ª aula.`
-      : `Uma aula da turma ${turma.nome} foi movida para ${nomeDoDia(
-          destino.diaSemana,
-        )}, ${destino.periodo}ª aula.`;
-
-    this.banco.favoritos
-      .filter((favorito) => favorito.turmaId === turma.id)
-      .forEach((favorito) => {
-        this.banco.notificacoes.push({
-          id: gerarId('notif'),
-          uid: favorito.uid,
-          turmaId: turma.id,
-          titulo: aulaDestino ? 'Aulas trocadas' : 'Aula movida',
-          mensagem,
-          lida: false,
-          criadoEm: agora,
-        });
-      });
-
     this.persistir();
   }
 
@@ -575,34 +535,6 @@ export class EscolaDemo implements ServicoEscola {
         .filter((registro) => !filtro.tipo || registro.tipo === filtro.tipo)
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
     );
-  }
-
-  async listarNotificacoes(uid: string): Promise<Notificacao[]> {
-    return clonar(
-      this.banco.notificacoes
-        .filter((notificacao) => notificacao.uid === uid)
-        .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
-    );
-  }
-
-  async marcarNotificacaoLida(uid: string, notificacaoId: string): Promise<void> {
-    const notificacao = this.banco.notificacoes.find(
-      (item) => item.id === notificacaoId && item.uid === uid,
-    );
-    if (!notificacao) {
-      throw new ErroDeServico('nao-encontrado', 'Notificação não encontrada.');
-    }
-    notificacao.lida = true;
-    this.persistir();
-  }
-
-  async marcarTodasNotificacoesLidas(uid: string): Promise<void> {
-    this.banco.notificacoes
-      .filter((item) => item.uid === uid)
-      .forEach((item) => {
-        item.lida = true;
-      });
-    this.persistir();
   }
 
   async listarFavoritos(uid: string): Promise<Favorito[]> {

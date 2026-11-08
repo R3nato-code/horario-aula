@@ -15,7 +15,6 @@ function bancoValido(valor: unknown): valor is BancoDemo {
     Array.isArray(candidato.turmas) &&
     Array.isArray(candidato.aulas) &&
     Array.isArray(candidato.historico) &&
-    Array.isArray(candidato.notificacoes) &&
     Array.isArray(candidato.favoritos) &&
     typeof candidato.configuracao === 'object' &&
     candidato.configuracao !== null

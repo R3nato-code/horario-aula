@@ -352,9 +352,8 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
           </Campo>
 
           <Alerta tipo="aviso" titulo="Impacto da alteração">
-            A mudança substitui a associação atual da aula, gera registro de histórico e
-            notificação para usuários que favoritaram a turma. Conflitos de professor impedem a
-            gravação.
+            A mudança substitui a associação atual da aula e gera registro de histórico.
+            Conflitos de professor impedem a gravação.
           </Alerta>
         </div>
       </Modal>

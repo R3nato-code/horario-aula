@@ -3,7 +3,6 @@ import type {
   ConfiguracaoHorarios,
   Disciplina,
   Favorito,
-  Notificacao,
   Professor,
   RegistroHistorico,
   Turma,
@@ -19,7 +18,6 @@ export interface BancoDemo {
   aulas: Aula[];
   configuracao: ConfiguracaoHorarios;
   historico: RegistroHistorico[];
-  notificacoes: Notificacao[];
   favoritos: Favorito[];
   /** Momento em que os dados de demonstração foram gerados. */
   geradoEm: string;

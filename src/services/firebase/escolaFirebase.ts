@@ -8,7 +8,6 @@ import {
   where,
   runTransaction,
   serverTimestamp,
-  updateDoc,
   writeBatch,
   type DocumentData,
   type Firestore,
@@ -22,7 +21,6 @@ import type {
   ConfiguracaoHorarios,
   Disciplina,
   Favorito,
-  Notificacao,
   Professor,
   RegistroHistorico,
   TipoCadastro,
@@ -252,32 +250,6 @@ function mapearHistorico(documento: QueryDocumentSnapshot<DocumentData>): Regist
   };
 }
 
-function mapearNotificacao(
-  documento: QueryDocumentSnapshot<DocumentData>,
-): Notificacao {
-  const dados = documento.data();
-  const turmaIds = Array.isArray(dados.turmaIds)
-    ? dados.turmaIds.filter((item): item is string => typeof item === 'string')
-    : [];
-  const totalAulas =
-    dados.agrupamento && typeof dados.agrupamento === 'object'
-      ? (dados.agrupamento as { totalAulas?: unknown }).totalAulas
-      : undefined;
-
-  return {
-    id: documento.id,
-    uid: texto(dados.uid),
-    turmaId: turmaIds[0] ?? texto(dados.turmaId),
-    titulo: textoNaoVazio(dados.titulo, 'Notificação'),
-    mensagem: texto(dados.mensagem),
-    lida: dados.lida === true,
-    criadoEm: paraIso(dados.criadoEm),
-    ...(typeof totalAulas === 'number'
-      ? { agrupamento: { totalAulas } }
-      : {}),
-  };
-}
-
 function mapearFavorito(documento: QueryDocumentSnapshot<DocumentData>): Favorito {
   const dados = documento.data();
   return {
@@ -318,7 +290,7 @@ function entidadeHistorico(tipo: TipoCadastro): string {
 /**
  * Implementação do ServicoEscola sobre o Firestore direto (arquitetura client-only).
  *
- * Leituras de catálogo, aulas, configuração, próprias notificações e próprios
+ * Leituras de catálogo, aulas, configuração e próprias
  * favoritos são diretas. Escritas de domínio são feitas com `setDoc`/`updateDoc`/
  * `deleteDoc` dentro de `writeBatch` ou `runTransaction`, incluindo o registro de
  * histórico na mesma operação atômica (conforme guia de refatoração client-side).
@@ -973,60 +945,6 @@ export class EscolaFirebase implements ServicoEscola {
 
       const resultado = await getDocs(consulta);
       return resultado.docs.map(mapearHistorico).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-    } catch (erro) {
-      throw traduzirErroFirestore(erro);
-    }
-  }
-
-  async listarNotificacoes(uid: string): Promise<Notificacao[]> {
-    if (!uid) return [];
-
-    try {
-      const resultado = await getDocs(
-        query(collection(this.db, 'notificacoes'), where('uid', '==', uid), limit(100)),
-      );
-      return ordenarPorCriadoEmDesc(resultado.docs.map(mapearNotificacao));
-    } catch (erro) {
-      throw traduzirErroFirestore(erro);
-    }
-  }
-
-  async marcarNotificacaoLida(uid: string, notificacaoId: string): Promise<void> {
-    if (!uid) {
-      throw new ErroDeServico('permissao', 'Sua sessão expirou. Entre novamente.');
-    }
-
-    try {
-      await updateDoc(doc(this.db, 'notificacoes', notificacaoId), {
-        lida: true,
-        lidaEm: serverTimestamp(),
-      });
-    } catch (erro) {
-      throw traduzirErroFirestore(erro);
-    }
-  }
-
-  async marcarTodasNotificacoesLidas(uid: string): Promise<void> {
-    if (!uid) {
-      throw new ErroDeServico('permissao', 'Sua sessão expirou. Entre novamente.');
-    }
-
-    try {
-      const resultado = await getDocs(
-        query(collection(this.db, 'notificacoes'), where('uid', '==', uid), limit(500)),
-      );
-      const pendentes = resultado.docs.filter((documento) => documento.data().lida !== true);
-
-      for (let inicio = 0; inicio < pendentes.length; inicio += 400) {
-        const lote = writeBatch(this.db);
-        pendentes.slice(inicio, inicio + 400).forEach((documento) => {
-          lote.update(documento.ref, {
-            lida: true,
-            lidaEm: serverTimestamp(),
-          });
-        });
-        await lote.commit();
-      }
     } catch (erro) {
       throw traduzirErroFirestore(erro);
     }
