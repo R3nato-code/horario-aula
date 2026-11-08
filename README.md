@@ -11,6 +11,8 @@ do Colégio Estadual Presidente Kennedy.
 
 **Versão:** 1.0 · **Data:** 08/11/2026 · **Status:** v1 entregue, com pendências registradas.
 
+  #OBS: As aulas não correspondem totalmente ao modelo atual (Sujeito a alterações)
+
 ---
 
 ## 1. Introdução
