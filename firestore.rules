@@ -11,17 +11,15 @@ service cloud.firestore {
       return autenticado() && request.auth.uid == uid;
     }
 
-    // ---------------------------------------------------------------
-    // Usuários — perfil criado pelo próprio usuário.
-    // ---------------------------------------------------------------
+    function ehAdministrativo() {
+      return autenticado()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'gestor'];
+    }
+
     match /users/{uid} {
       allow get: if mesmoUsuario(uid);
       allow list: if false;
       allow delete: if false;
-
-      // Bootstrap do perfil sem Cloud Functions publicadas. O cliente só pode
-      // criar o PRÓPRIO perfil e somente com o papel padrão 'aluno'. Papéis
-      // administrativos continuam exclusivos de operação server-side.
       allow create: if mesmoUsuario(uid)
         && request.resource.data.keys().hasOnly([
           'uid', 'email', 'displayName', 'role', 'updatedAt'
@@ -33,32 +31,42 @@ service cloud.firestore {
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 120
         && request.resource.data.updatedAt == request.time;
-
-      // O cliente nunca altera papel, e-mail ou qualquer campo de autorização.
-      // A edição de perfil é responsabilidade do backend.
       allow update: if false;
     }
 
-    // ---------------------------------------------------------------
-    // Catálogo escolar e aulas — Leitura autenticada.
-    // ---------------------------------------------------------------
-    match /professores/{id} { allow read: if autenticado(); allow write: if false; }
-    match /disciplinas/{id} { allow read: if autenticado(); allow write: if false; }
-    match /turmas/{id} { allow read: if autenticado(); allow write: if false; }
-    match /aulas/{id} { allow read: if autenticado(); allow write: if false; }
-    match /configuracao/{id} { allow read: if autenticado(); allow write: if false; }
-    // Reservada a LAC-23/LAC-24: permanece totalmente fechada.
+    match /professores/{id} {
+      allow read: if autenticado();
+      allow write: if ehAdministrativo();
+    }
+    match /disciplinas/{id} {
+      allow read: if autenticado();
+      allow write: if ehAdministrativo();
+    }
+    match /turmas/{id} {
+      allow read: if autenticado();
+      allow write: if ehAdministrativo();
+    }
+    match /aulas/{id} {
+      allow read: if autenticado();
+      allow write: if ehAdministrativo();
+    }
+    match /configuracao/{id} {
+      allow read: if autenticado();
+      allow write: if ehAdministrativo();
+    }
+
+    match /historico/{id} {
+      allow read: if autenticado();
+      allow create: if ehAdministrativo();
+      allow update: if false;
+      allow delete: if false;
+    }
+
     match /salas/{id} { allow read, write: if false; }
 
-    // ---------------------------------------------------------------
-    // Notificações — cada usuário lê e marca apenas as próprias.
-    // ---------------------------------------------------------------
     match /notificacoes/{id} {
       allow get, list: if mesmoUsuario(resource.data.uid);
       allow create, delete: if false;
-
-      // O destinatário só pode marcar como lida. Todos os demais campos
-      // (uid, tipo, turmaIds, criadoEm, expiraEm etc.) ficam imutáveis.
       allow update: if mesmoUsuario(resource.data.uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'lida', 'lidaEm'
@@ -68,19 +76,21 @@ service cloud.firestore {
         && resource.data.lida == false;
     }
 
-    // ---------------------------------------------------------------
-    // Favoritos — doc ID `{uid}_{turmaId}`.
-    // ---------------------------------------------------------------
     match /favoritos/{favoritoId} {
-      allow get, list: if mesmoUsuario(resource.data.uid);
+      // Permite ler um documento inexistente (necessário para a transação de
+      // alternar favorito verificar existência antes de criar). Documentos
+      // existentes só podem ser lidos pelo próprio dono.
+      allow get: if autenticado()
+        && (resource == null || mesmoUsuario(resource.data.uid));
+      allow list: if mesmoUsuario(resource.data.uid);
       allow update: if false;
       allow delete: if mesmoUsuario(resource.data.uid);
-
       allow create: if mesmoUsuario(request.resource.data.uid)
         && request.resource.data.keys().hasOnly(['uid', 'turmaId', 'criadoEm'])
         && favoritoId == request.auth.uid + '_' + request.resource.data.turmaId
         && request.resource.data.turmaId is string
-        && request.resource.data.criadoEm == request.time
+        && request.resource.data.criadoEm is timestamp
+        && request.resource.data.criadoEm <= request.time
         && exists(
           /databases/$(database)/documents/turmas/$(request.resource.data.turmaId)
         );
@@ -91,4 +101,3 @@ service cloud.firestore {
     }
   }
 }
-

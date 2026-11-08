@@ -76,10 +76,6 @@ export function LoginPage() {
               <span className="login__modulo-numero">03</span>
               <span>Histórico de alterações e notificações internas</span>
             </div>
-            <div className="login__modulo">
-              <span className="login__modulo-numero">04</span>
-              <span>Assistente conectado aos dados escolares</span>
-            </div>
           </div>
         </div>
 

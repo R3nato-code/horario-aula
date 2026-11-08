@@ -5,17 +5,16 @@ import {
   getDocs,
   limit,
   query,
+  where,
   runTransaction,
   serverTimestamp,
   updateDoc,
-  where,
   writeBatch,
   type DocumentData,
   type Firestore,
   type Query,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import type {
   Aula,
   AulaDetalhada,
@@ -32,19 +31,6 @@ import type {
   Usuario,
 } from '@/types/dominio';
 import type {
-  ConfiguracaoResposta,
-  EntradaAlterarStatusCadastro,
-  EntradaExcluirCadastro,
-  EntradaListarHistorico,
-  EntradaSalvarAula,
-  EntradaSalvarCadastroCallable,
-  EntradaSalvarConfiguracao,
-  ItemHistoricoResposta,
-  RespostaListarHistorico,
-  RespostaSalvarAula,
-  RespostaSalvarConfiguracao,
-} from '@/types/contratos';
-import type {
   EntradaAula,
   EntradaSalvarCadastro,
   FiltroAulas,
@@ -52,21 +38,20 @@ import type {
   ServicoEscola,
 } from '@/services/contratos';
 import { ErroDeServico, ehErroDeServico, type CodigoErroServico } from '@/services/erros';
-import { obterFirestore, obterFuncoesFirebase } from '@/lib/firebase/cliente';
+import { obterFirestore } from '@/lib/firebase/cliente';
 import {
   configuracaoDoDocumento,
   diaSemanaValido,
-  intervaloDoValor,
   mapaJson,
   modalidadeCadastro,
   paraIso,
   periodoValido,
-  periodosDoValor,
   statusCadastro,
   texto,
   textoNaoVazio,
 } from '@/lib/firebase/conversoes';
 import { criarIdAula, horarioDoPeriodo } from '@/lib/utilidades';
+import { validarConflitoHorario } from '@/services/validacao';
 
 interface MensagemTraduzida {
   codigo: CodigoErroServico;
@@ -79,9 +64,6 @@ function codigoDoErro(erro: unknown): string | null {
   return typeof codigo === 'string' ? codigo : null;
 }
 
-/**
- * Mensagens de leitura direta do Firestore. O detalhe técnico não é exibido.
- */
 const MENSAGENS_FIRESTORE: Record<string, MensagemTraduzida> = {
   'permission-denied': {
     codigo: 'permissao',
@@ -115,55 +97,6 @@ const MENSAGENS_FIRESTORE: Record<string, MensagemTraduzida> = {
   },
 };
 
-const MENSAGENS_CALLABLE: Record<string, MensagemTraduzida> = {
-  'functions/unauthenticated': {
-    codigo: 'permissao',
-    mensagem: 'Sua sessão expirou. Entre novamente para continuar.',
-  },
-  'functions/permission-denied': {
-    codigo: 'permissao',
-    mensagem: 'Seu perfil não tem autorização para esta operação.',
-  },
-  'functions/invalid-argument': {
-    codigo: 'validacao',
-    mensagem: 'Os dados informados não foram aceitos pelo servidor.',
-  },
-  'functions/already-exists': {
-    codigo: 'validacao',
-    mensagem: 'Já existe um registro com estes dados.',
-  },
-  'functions/failed-precondition': {
-    codigo: 'validacao',
-    mensagem: 'A operação não pode ser concluída no estado atual dos dados.',
-  },
-  'functions/aborted': {
-    codigo: 'desconhecido',
-    mensagem: 'A operação foi interrompida por outra alteração simultânea. Tente novamente.',
-  },
-  'functions/resource-exhausted': {
-    codigo: 'validacao',
-    mensagem: 'O limite da operação foi excedido. Reduza a seleção e tente novamente.',
-  },
-  'functions/deadline-exceeded': {
-    codigo: 'desconhecido',
-    mensagem: 'A operação demorou mais que o esperado. Tente novamente.',
-  },
-  'functions/cancelled': {
-    codigo: 'desconhecido',
-    mensagem: 'A operação foi cancelada. Tente novamente.',
-  },
-  'functions/not-found': {
-    codigo: 'nao-encontrado',
-    mensagem: 'O registro solicitado não foi encontrado no servidor.',
-  },
-};
-
-const CALLABLES_INDISPONIVEIS = new Set([
-  'functions/unimplemented',
-  'functions/internal',
-  'functions/unavailable',
-]);
-
 function traduzirErroFirestore(erro: unknown): ErroDeServico {
   if (ehErroDeServico(erro)) return erro;
 
@@ -175,42 +108,6 @@ function traduzirErroFirestore(erro: unknown): ErroDeServico {
     'desconhecido',
     'Não foi possível concluir a operação. Tente novamente.',
   );
-}
-
-function traduzirErroCallable(erro: unknown): ErroDeServico {
-  if (ehErroDeServico(erro)) return erro;
-
-  const codigo = codigoDoErro(erro);
-  if (!codigo || !codigo.startsWith('functions/')) {
-    return traduzirErroFirestore(erro);
-  }
-
-  if (CALLABLES_INDISPONIVEIS.has(codigo)) {
-    return new ErroDeServico(
-      'nao-configurado',
-      'Esta operação ainda não está disponível neste ambiente.',
-    );
-  }
-
-  const mapeado = MENSAGENS_CALLABLE[codigo];
-  if (!mapeado) {
-    return new ErroDeServico(
-      'desconhecido',
-      'Não foi possível concluir a operação no servidor. Tente novamente.',
-    );
-  }
-
-  // Para erros de validação/conflito, a mensagem do HttpsError é escrita para
-  // o usuário final pelo backend. Códigos internos permanecem ocultos.
-  const mensagemServidor =
-    codigo === 'functions/invalid-argument' ||
-    codigo === 'functions/already-exists' ||
-    codigo === 'functions/failed-precondition' ||
-    codigo === 'functions/resource-exhausted'
-      ? textoNaoVazio(erro instanceof Error ? erro.message : null)
-      : '';
-
-  return new ErroDeServico(mapeado.codigo, mensagemServidor || mapeado.mensagem);
 }
 
 function porNome(a: { nome: string }, b: { nome: string }): number {
@@ -282,37 +179,31 @@ function mapearAula(
   };
 }
 
-function normalizarAulaResposta(resposta: RespostaSalvarAula, entrada: EntradaAula): Aula {
-  const aula = resposta?.aula;
-  if (!aula) {
-    throw new ErroDeServico(
-      'desconhecido',
-      'O servidor não confirmou a alteração da aula. Tente novamente.',
-    );
-  }
-
+/**
+ * Converte um registro de domínio para um documento salvo na coleção `historico`.
+ * O `id` é gerado pelo Firestore (`doc(collection)`) e preenchido após a escrita.
+ */
+function montarRegistroHistorico(
+  tipo: TipoRegistroHistorico,
+  entidade: string,
+  entidadeId: string,
+  descricao: string,
+  alteracao: { antes: Record<string, unknown>; depois: Record<string, unknown> },
+  responsavel: Usuario,
+): Omit<RegistroHistorico, 'id' | 'timestamp'> {
   return {
-    id: textoNaoVazio(aula.id, criarIdAula(entrada.turmaId, entrada.diaSemana, entrada.periodo)),
-    turmaId: textoNaoVazio(aula.turmaId, entrada.turmaId),
-    diaSemana: diaSemanaValido(aula.diaSemana) ?? entrada.diaSemana,
-    periodo: periodoValido(aula.periodo) ?? entrada.periodo,
-    disciplinaId: textoNaoVazio(aula.disciplinaId, entrada.disciplinaId),
-    professorId: textoNaoVazio(aula.professorId, entrada.professorId),
-    atualizadoEm: paraIso(aula.atualizadoEm) || new Date().toISOString(),
-  };
-}
-
-function normalizarConfiguracaoResposta(
-  resposta: ConfiguracaoResposta | undefined,
-  fallback: ConfiguracaoHorarios,
-): ConfiguracaoHorarios {
-  const periodos = periodosDoValor(resposta?.periodos);
-  return {
-    abertura: textoNaoVazio(resposta?.abertura, fallback.abertura),
-    fechamento: textoNaoVazio(resposta?.fechamento, fallback.fechamento),
-    periodos: periodos.length > 0 ? periodos : fallback.periodos,
-    intervalo: resposta ? intervaloDoValor(resposta.intervalo) : fallback.intervalo,
-    atualizadoEm: paraIso(resposta?.atualizadoEm) || new Date().toISOString(),
+    tipo,
+    entidade,
+    entidadeId,
+    entidadeNome: textoNaoVazio(entidadeId),
+    descricao,
+    alteracao: {
+      antes: mapaJson(alteracao.antes),
+      depois: mapaJson(alteracao.depois),
+    },
+    responsavelId: responsavel.uid,
+    responsavelNome: responsavel.nome,
+    responsavelEmail: responsavel.email,
   };
 }
 
@@ -326,20 +217,23 @@ function tipoHistorico(valor: unknown): TipoRegistroHistorico {
     : 'sistema';
 }
 
-function mapearHistorico(item: ItemHistoricoResposta): RegistroHistorico {
+function mapearHistorico(documento: QueryDocumentSnapshot<DocumentData>): RegistroHistorico {
+  const dados = documento.data();
   return {
-    id: texto(item.id),
-    tipo: tipoHistorico(item.tipo),
-    entidade: texto(item.entidade),
-    entidadeId: texto(item.entidadeId),
-    descricao: texto(item.descricao),
+    id: documento.id,
+    tipo: tipoHistorico(dados.tipo),
+    entidade: texto(dados.entidade),
+    entidadeId: texto(dados.entidadeId),
+    entidadeNome: textoNaoVazio(dados.entidadeNome),
+    descricao: texto(dados.descricao),
     alteracao: {
-      antes: mapaJson(item.alteracao?.antes),
-      depois: mapaJson(item.alteracao?.depois),
+      antes: mapaJson(dados.alteracao?.antes),
+      depois: mapaJson(dados.alteracao?.depois),
     },
-    responsavelId: texto(item.responsavelId),
-    responsavelNome: textoNaoVazio(item.responsavelNome, 'Sistema'),
-    timestamp: paraIso(item.timestamp),
+    responsavelId: texto(dados.responsavelId),
+    responsavelNome: textoNaoVazio(dados.responsavelNome, 'Sistema'),
+    responsavelEmail: textoNaoVazio(dados.responsavelEmail),
+    timestamp: paraIso(dados.timestamp),
   };
 }
 
@@ -382,13 +276,37 @@ function ordenarPorCriadoEmDesc<T extends { criadoEm: string }>(itens: T[]): T[]
   return [...itens].sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
 }
 
+/** Nome da coleção de domínio para cada tipo de cadastro. */
+function colecaoCadastro(tipo: TipoCadastro): string {
+  switch (tipo) {
+    case 'professor':
+      return 'professores';
+    case 'disciplina':
+      return 'disciplinas';
+    case 'turma':
+      return 'turmas';
+  }
+}
+
+/** Nome da entidade usada no histórico para cada coleção. */
+function entidadeHistorico(tipo: TipoCadastro): string {
+  switch (tipo) {
+    case 'professor':
+      return 'professores';
+    case 'disciplina':
+      return 'disciplinas';
+    case 'turma':
+      return 'turmas';
+  }
+}
+
 /**
- * Implementação do ServicoEscola sobre o Firestore e as callables aprovadas.
+ * Implementação do ServicoEscola sobre o Firestore direto (arquitetura client-only).
  *
  * Leituras de catálogo, aulas, configuração, próprias notificações e próprios
- * favoritos são diretas (PAD-16). Operações administrativas nunca escrevem no
- * cliente: passam por Cloud Functions e falham de forma explícita quando a
- * função não está publicada.
+ * favoritos são diretas. Escritas de domínio são feitas com `setDoc`/`updateDoc`/
+ * `deleteDoc` dentro de `writeBatch` ou `runTransaction`, incluindo o registro de
+ * histórico na mesma operação atômica (conforme guia de refatoração client-side).
  */
 export class EscolaFirebase implements ServicoEscola {
   private readonly db: Firestore;
@@ -432,8 +350,6 @@ export class EscolaFirebase implements ServicoEscola {
     try {
       let consulta: Query<DocumentData> = collection(this.db, 'aulas');
 
-      // Um único filtro de igualdade no servidor evita índices compostos
-      // adicionais; os demais filtros são aplicados no cliente.
       if (filtro.turmaId) {
         consulta = query(consulta, where('turmaId', '==', filtro.turmaId));
       } else if (filtro.professorId) {
@@ -475,103 +391,346 @@ export class EscolaFirebase implements ServicoEscola {
     }
   }
 
-  async salvarAula(entrada: EntradaAula, _responsavel: Usuario): Promise<Aula> {
-    const resposta = await this.chamar<EntradaSalvarAula, RespostaSalvarAula>(
-      'salvarAula',
-      entrada,
-    );
-    return normalizarAulaResposta(resposta, entrada);
+  async salvarAula(entrada: EntradaAula, responsavel: Usuario): Promise<Aula> {
+    const idAula = criarIdAula(entrada.turmaId, entrada.diaSemana, entrada.periodo);
+
+    try {
+      return await runTransaction(this.db, async (transacao) => {
+        // 1. Carregar aulas existentes para validação de conflito.
+        const aulasTurma = await getDocs(
+          query(collection(this.db, 'aulas'), where('turmaId', '==', entrada.turmaId), limit(500)),
+        );
+        const aulasProfessor = await getDocs(
+          query(
+            collection(this.db, 'aulas'),
+            where('professorId', '==', entrada.professorId),
+            limit(500),
+          ),
+        );
+
+        const aulasExistentes: Aula[] = [
+          ...aulasTurma.docs.map((d) => ({
+            id: d.id,
+            turmaId: texto(d.data().turmaId),
+            diaSemana: diaSemanaValido(d.data().diaSemana) ?? 1,
+            periodo: periodoValido(d.data().periodo) ?? 1,
+            disciplinaId: texto(d.data().disciplinaId),
+            professorId: texto(d.data().professorId),
+            atualizadoEm: paraIso(d.data().atualizadoEm) || '',
+          })),
+          ...aulasProfessor.docs.map((d) => ({
+            id: d.id,
+            turmaId: texto(d.data().turmaId),
+            diaSemana: diaSemanaValido(d.data().diaSemana) ?? 1,
+            periodo: periodoValido(d.data().periodo) ?? 1,
+            disciplinaId: texto(d.data().disciplinaId),
+            professorId: texto(d.data().professorId),
+            atualizadoEm: paraIso(d.data().atualizadoEm) || '',
+          })),
+        ];
+
+        // 2. Validar conflito antes de gravar.
+        const validacao = validarConflitoHorario(
+          aulasExistentes,
+          {
+            id: idAula,
+            turmaId: entrada.turmaId,
+            professorId: entrada.professorId,
+            diaSemana: entrada.diaSemana,
+            periodo: entrada.periodo,
+          },
+          idAula,
+        );
+
+        if (!validacao.valido) {
+          throw new ErroDeServico(
+            'conflito-professor',
+            validacao.motivo ?? 'Conflito de horário detectado.',
+            `Conflito com aula ${validacao.conflito?.id}`,
+          );
+        }
+
+        // 3. Capturar snapshot anterior (se existir) para o histórico.
+        const refAula = doc(this.db, 'aulas', idAula);
+        const anterior = await transacao.get(refAula);
+        const antes = anterior.exists()
+          ? {
+              turmaId: texto(anterior.data().turmaId),
+              diaSemana: anterior.data().diaSemana,
+              periodo: anterior.data().periodo,
+              disciplinaId: texto(anterior.data().disciplinaId),
+              professorId: texto(anterior.data().professorId),
+            }
+          : {};
+
+        const depois = {
+          turmaId: entrada.turmaId,
+          diaSemana: entrada.diaSemana,
+          periodo: entrada.periodo,
+          disciplinaId: entrada.disciplinaId,
+          professorId: entrada.professorId,
+        };
+
+        // 4. Gravar aula.
+        transacao.set(refAula, {
+          turmaId: entrada.turmaId,
+          diaSemana: entrada.diaSemana,
+          periodo: entrada.periodo,
+          disciplinaId: entrada.disciplinaId,
+          professorId: entrada.professorId,
+          criadoEm: anterior.exists() ? anterior.data().criadoEm : serverTimestamp(),
+          atualizadoEm: serverTimestamp(),
+        });
+
+        // 5. Gravar histórico na mesma transação.
+        const refHistorico = doc(collection(this.db, 'historico'));
+        transacao.set(refHistorico, montarRegistroHistorico(
+          'aula',
+          'aulas',
+          idAula,
+          anterior.exists()
+            ? `Aula da turma "${entrada.turmaId}" atualizada (${entrada.diaSemana}/${entrada.periodo}).`
+            : `Aula da turma "${entrada.turmaId}" criada (${entrada.diaSemana}/${entrada.periodo}).`,
+          { antes, depois },
+          responsavel,
+        ));
+
+        return {
+          id: idAula,
+          turmaId: entrada.turmaId,
+          diaSemana: entrada.diaSemana,
+          periodo: entrada.periodo,
+          disciplinaId: entrada.disciplinaId,
+          professorId: entrada.professorId,
+          atualizadoEm: new Date().toISOString(),
+        };
+      });
+    } catch (erro) {
+      if (ehErroDeServico(erro)) throw erro;
+      throw traduzirErroFirestore(erro);
+    }
   }
 
   async salvarConfiguracao(
     configuracao: ConfiguracaoHorarios,
-    _responsavel: Usuario,
+    responsavel: Usuario,
   ): Promise<ConfiguracaoHorarios> {
-    const entrada: EntradaSalvarConfiguracao = {
-      abertura: configuracao.abertura,
-      fechamento: configuracao.fechamento,
-      periodos: configuracao.periodos.map((periodo) => ({ ...periodo })),
-      intervalo: configuracao.intervalo ? { ...configuracao.intervalo } : null,
-    };
+    const refConfig = doc(this.db, 'configuracao', 'atual');
 
-    const resposta = await this.chamar<EntradaSalvarConfiguracao, RespostaSalvarConfiguracao>(
-      'salvarConfiguracao',
-      entrada,
-    );
+    try {
+      const anterior = await getDoc(refConfig);
+      const antes = anterior.exists()
+        ? {
+            abertura: anterior.data().abertura,
+            fechamento: anterior.data().fechamento,
+            periodos: anterior.data().periodos,
+            intervalo: anterior.data().intervalo,
+          }
+        : {};
 
-    return normalizarConfiguracaoResposta(resposta?.configuracao, configuracao);
+      const depois = {
+        abertura: configuracao.abertura,
+        fechamento: configuracao.fechamento,
+        periodos: configuracao.periodos.map((p) => ({ ...p })),
+        intervalo: configuracao.intervalo ? { ...configuracao.intervalo } : null,
+      };
+
+      const batch = writeBatch(this.db);
+
+      batch.set(refConfig, {
+        abertura: configuracao.abertura,
+        fechamento: configuracao.fechamento,
+        periodos: configuracao.periodos.map((p) => ({ ...p })),
+        intervalo: configuracao.intervalo ? { ...configuracao.intervalo } : null,
+        criadoEm: anterior.exists() ? anterior.data().criadoEm : serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
+        atualizadoPor: responsavel.uid,
+      });
+
+      const refHistorico = doc(collection(this.db, 'historico'));
+      batch.set(refHistorico, montarRegistroHistorico(
+        'configuracao',
+        'configuracao',
+        'atual',
+        `Configuração de horários atualizada por ${responsavel.nome}.`,
+        { antes, depois },
+        responsavel,
+      ));
+
+      await batch.commit();
+
+      return {
+        ...configuracao,
+        atualizadoEm: new Date().toISOString(),
+      };
+    } catch (erro) {
+      throw traduzirErroFirestore(erro);
+    }
   }
 
   async salvarCadastro(
     entrada: EntradaSalvarCadastro,
-    _responsavel: Usuario,
+    responsavel: Usuario,
   ): Promise<Catalogo> {
-    const payload: EntradaSalvarCadastroCallable =
-      entrada.tipo === 'turma'
-        ? {
-            tipo: 'turma',
-            nome: entrada.nome,
-            serie: entrada.serie,
-            modalidade: entrada.modalidade,
-            turno: 'manha',
-            ...(entrada.id ? { id: entrada.id } : {}),
-          }
-        : {
-            tipo: entrada.tipo,
-            nome: entrada.nome,
-            ...(entrada.id ? { id: entrada.id } : {}),
-          };
+    const colecao = colecaoCadastro(entrada.tipo);
+    const id = entrada.id ?? `novo-${Date.now()}`;
+    const ref = doc(this.db, colecao, id);
 
-    await this.chamar<EntradaSalvarCadastroCallable, unknown>('salvarCadastro', payload);
-    return this.listarCatalogo();
+    try {
+      const anterior = await getDoc(ref);
+      const antes = anterior.exists()
+        ? {
+            nome: anterior.data().nome,
+            status: anterior.data().status,
+            ...(entrada.tipo === 'turma'
+              ? { serie: anterior.data().serie, modalidade: anterior.data().modalidade }
+              : {}),
+          }
+        : {};
+
+      const depois: Record<string, unknown> = {
+        nome: entrada.nome,
+        status: 'ativo',
+        ...(entrada.tipo === 'turma'
+          ? { serie: entrada.serie, modalidade: entrada.modalidade, turno: 'manha' }
+          : {}),
+      };
+
+      const batch = writeBatch(this.db);
+
+      batch.set(ref, {
+        nome: entrada.nome,
+        status: 'ativo',
+        ...(entrada.tipo === 'turma'
+          ? { serie: entrada.serie, modalidade: entrada.modalidade, turno: 'manha' }
+          : {}),
+        criadoEm: anterior.exists() ? anterior.data().criadoEm : serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
+      });
+
+      const refHistorico = doc(collection(this.db, 'historico'));
+      batch.set(refHistorico, montarRegistroHistorico(
+        'cadastro',
+        entidadeHistorico(entrada.tipo),
+        id,
+        anterior.exists()
+          ? `${entrada.tipo} "${entrada.nome}" atualizado.`
+          : `${entrada.tipo} "${entrada.nome}" criado.`,
+        { antes, depois },
+        responsavel,
+      ));
+
+      await batch.commit();
+
+      return this.listarCatalogo();
+    } catch (erro) {
+      throw traduzirErroFirestore(erro);
+    }
   }
 
   async alterarStatusCadastro(
     tipo: TipoCadastro,
     id: string,
     status: 'ativo' | 'arquivado',
-    _responsavel: Usuario,
+    responsavel: Usuario,
   ): Promise<Catalogo> {
-    const entrada: EntradaAlterarStatusCadastro = { tipo, id, status };
-    await this.chamar<EntradaAlterarStatusCadastro, unknown>(
-      'alterarStatusCadastro',
-      entrada,
-    );
-    return this.listarCatalogo();
+    const colecao = colecaoCadastro(tipo);
+    const ref = doc(this.db, colecao, id);
+
+    try {
+      const anterior = await getDoc(ref);
+      if (!anterior.exists()) {
+        throw new ErroDeServico('nao-encontrado', `${tipo} não encontrado.`);
+      }
+
+      const antes = { status: anterior.data().status };
+      const depois = { status };
+
+      const batch = writeBatch(this.db);
+
+      batch.update(ref, {
+        status,
+        atualizadoEm: serverTimestamp(),
+      });
+
+      const refHistorico = doc(collection(this.db, 'historico'));
+      batch.set(refHistorico, montarRegistroHistorico(
+        'cadastro',
+        entidadeHistorico(tipo),
+        id,
+        `${tipo} "${textoNaoVazio(anterior.data().nome)}" status alterado para "${status}".`,
+        { antes, depois },
+        responsavel,
+      ));
+
+      await batch.commit();
+
+      return this.listarCatalogo();
+    } catch (erro) {
+      if (ehErroDeServico(erro)) throw erro;
+      throw traduzirErroFirestore(erro);
+    }
   }
 
   async excluirCadastro(
     tipo: TipoCadastro,
     id: string,
-    _responsavel: Usuario,
+    responsavel: Usuario,
   ): Promise<Catalogo> {
-    const entrada: EntradaExcluirCadastro = { tipo, id };
-    await this.chamar<EntradaExcluirCadastro, unknown>('excluirCadastro', entrada);
-    return this.listarCatalogo();
+    const colecao = colecaoCadastro(tipo);
+    const ref = doc(this.db, colecao, id);
+
+    try {
+      const anterior = await getDoc(ref);
+      if (!anterior.exists()) {
+        throw new ErroDeServico('nao-encontrado', `${tipo} não encontrado.`);
+      }
+
+      const snapshot = {
+        nome: textoNaoVazio(anterior.data().nome),
+        status: anterior.data().status,
+        ...(tipo === 'turma'
+          ? { serie: anterior.data().serie, modalidade: anterior.data().modalidade }
+          : {}),
+      };
+
+      const batch = writeBatch(this.db);
+
+      batch.delete(ref);
+
+      const refHistorico = doc(collection(this.db, 'historico'));
+      batch.set(refHistorico, montarRegistroHistorico(
+        'cadastro',
+        entidadeHistorico(tipo),
+        id,
+        `${tipo} "${snapshot.nome}" excluído definitivamente.`,
+        { antes: snapshot, depois: {} },
+        responsavel,
+      ));
+
+      await batch.commit();
+
+      return this.listarCatalogo();
+    } catch (erro) {
+      if (ehErroDeServico(erro)) throw erro;
+      throw traduzirErroFirestore(erro);
+    }
   }
 
   async listarHistorico(filtro: FiltroHistorico = {}): Promise<RegistroHistorico[]> {
-    const entrada: EntradaListarHistorico = filtro.tipo ? { tipo: filtro.tipo } : {};
-
     try {
-      const resposta = await this.chamar<EntradaListarHistorico, RespostaListarHistorico>(
-        'listarHistorico',
-        entrada,
-      );
+      let consulta: Query<DocumentData> = collection(this.db, 'historico');
 
-      return (resposta?.itens ?? [])
-        .map(mapearHistorico)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-    } catch (erro) {
-      // Sem a callable publicada, o painel continua funcional com histórico
-      // vazio. Erros de permissão e validação nunca são mascarados.
-      if (
-        ehErroDeServico(erro) &&
-        (erro.codigo === 'nao-configurado' || erro.codigo === 'nao-encontrado')
-      ) {
-        return [];
+      if (filtro.tipo) {
+        consulta = query(consulta, where('tipo', '==', filtro.tipo));
       }
-      throw erro;
+
+      consulta = query(consulta, limit(100));
+
+      const resultado = await getDocs(consulta);
+      return resultado.docs.map(mapearHistorico).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    } catch (erro) {
+      throw traduzirErroFirestore(erro);
     }
   }
 
@@ -579,8 +738,6 @@ export class EscolaFirebase implements ServicoEscola {
     if (!uid) return [];
 
     try {
-      // A regra exige o filtro por uid. A ordenação é feita no cliente para
-      // não depender do índice IDX-07 durante a implantação.
       const resultado = await getDocs(
         query(collection(this.db, 'notificacoes'), where('uid', '==', uid), limit(100)),
       );
@@ -675,19 +832,6 @@ export class EscolaFirebase implements ServicoEscola {
     } catch (erro) {
       if (ehErroDeServico(erro)) throw erro;
       throw traduzirErroFirestore(erro);
-    }
-  }
-
-  private async chamar<TEntrada, TSaida>(
-    nome: string,
-    entrada: TEntrada,
-  ): Promise<TSaida> {
-    try {
-      const funcao = httpsCallable<TEntrada, TSaida>(obterFuncoesFirebase(), nome);
-      const resposta = await funcao(entrada);
-      return resposta.data;
-    } catch (erro) {
-      throw traduzirErroCallable(erro);
     }
   }
 }

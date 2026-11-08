@@ -132,7 +132,46 @@
 
 ---
 
+## IMP-08 — Publicação do front-end como Static Site no Render (ADR-08)
+
+| Campo | Conteúdo |
+|---|---|
+| ID | IMP-08 |
+| Mudança proposta | Publicar a SPA React/Vite como Static Site no Render, com build `npm ci && npm run build`, publish `dist`, variáveis `VITE_*` em tempo de build, rewrite `/* → /index.html`, cabeçalhos de segurança/cache e domínios autorizados no Firebase Auth. Regras e índices do Firestore continuam em release separado pelo Firebase CLI. |
+| Origem | Solicitação do responsável pelo projeto (deploy no Render) / ADR-08. |
+| Componentes afetados | ARC-01, ARC-02, ARC-03, ARC-07. |
+| Dados | Nenhuma migração. Firestore inalterado; índices publicados separadamente. O artefato `dist/` não é versionado. |
+| Segurança | Domínios autorizados no Firebase Auth; COOP para popup Google; headers de segurança; proibição de segredos em `VITE_*`; regras do Firestore permanecem a autoridade. LAC-20 continua aberta. |
+| Contratos | Nenhum contrato de dados muda. O contrato operacional passa a ser: `VITE_DATA_MODE=firebase`, build reprodutível, `dist/` publicado, regras/índices em etapa própria. |
+| Operação | Deploy automático por push em `main`; build atômico; rollback por histórico do Render ou `git revert`; variáveis não são revertidas pelo rollback; PWA com `sw.js` sem cache. |
+| Requisitos afetados | NFR de disponibilidade, segurança e operação (rastreabilidade pendente; matriz de requisitos não está no repositório). |
+| Riscos | RISCO-24 a RISCO-32. |
+| Recomendação | **Aprovar**, condicionado à aprovação humana da ADR-08, à autorização dos domínios no Firebase e à decisão sobre LAC-20 antes de divulgar a URL. |
+
+### IMP-08.1 — Ordem de release
+
+1. Publicar índices do Firestore e aguardar `Enabled`.
+2. Publicar regras do Firestore.
+3. Publicar o front-end no Render.
+4. Executar checklist e smoke test de `deploy-render.md`.
+
+### IMP-08.2 — Rollback do deploy Render
+
+| Cenário | Ação |
+|---|---|
+| Build falhou | Nenhuma ação: o Render mantém o deploy anterior. |
+| Versão nova com defeito | Rollback pelo histórico de deploys do Render ou `git revert` + push. |
+| Variável de ambiente errada | Corrigir no dashboard e refazer o deploy; rollback de deploy não reverte env. |
+| Regra/índice com problema | Reverter o arquivo e publicar pelo Firebase CLI; o front-end não é afetado automaticamente. |
+| Cache/PWA antigo | Conferir `Cache-Control` de `sw.js`; hard reload; versionar `CACHE_NAME`. |
+
+---
+
 ## 8. Plano de implementação recomendado
+
+> **Nota:** este plano foi escrito para o modelo server-side (ADR-01 a ADR-07). No estado
+> Client-Only atual, as etapas 1–9 são históricas. O release vigente é o de
+> `docs/arquitetura/deploy-render.md` (ver IMP-08.1).
 
 1. **Schema e regras (Back-End):** atualizar `firestore.rules`, `firestore.indexes.json`,
    tipos e documentação para os caminhos canônicos.
@@ -146,6 +185,7 @@
 8. **Front-End:** chamar `garantirPerfil` após login; adaptar tipos/conversores; implementar
    telas e serviços.
 9. **Testes:** unidade + integração; regras quando JDK 21 estiver disponível.
+10. **Deploy Render:** índices → regras → front-end; checklist e smoke test (IMP-08.1).
 
 ## 9. Rollback
 
@@ -183,3 +223,12 @@
 | RISCO-21 | Indisponibilidade Gemini | Média | Baixo | Timeout e erro seguro | Back-End |
 | RISCO-22 | Seed divergente da fixture demo | Média | Médio | Validação de 420/14/5/6 | Back-End |
 | RISCO-23 | Regras sem teste (JDK 21) | Alta | Alto | Instalar JDK 21 / CI | Responsável humano |
+| RISCO-24 | Produção publicada em modo demo por `VITE_DATA_MODE` ausente ou configuração Firebase incompleta | Alta | Alto | Checklist de env; falha de build quando o modo Firebase estiver incompleto | Front-End/Operação |
+| RISCO-25 | Login quebrado por domínio não autorizado no Firebase Auth | Alta | Alto | Autorizar `*.onrender.com` e domínio customizado antes do go-live | Operação |
+| RISCO-26 | PWA/CDN servindo versão antiga após deploy | Média | Médio | `sw.js` com `no-cache`; versionar `CACHE_NAME`; smoke test de atualização | Front-End |
+| RISCO-27 | Segredo exposto em variável `VITE_*` | Baixa | Alto | Apenas configuração pública; revisão do bundle e do `.env.example` | Arquiteto/Front-End |
+| RISCO-28 | Regras/índices dessincronizados do front-end | Média | Alto | Release em ordem: índices → regras → front-end; checklist único | Operação/Back-End |
+| RISCO-29 | Limites de banda/build do plano Render | Média | Baixo | Monitorar dashboard; cache imutável de assets; build filter | Operação |
+| RISCO-30 | Popup Google bloqueado ou `window.opener` perdido | Média | Médio | COOP `same-origin-allow-popups`; teste em navegadores; fallback de mensagem | Front-End |
+| RISCO-31 | Acesso público amplo por LAC-20 (sem restrição de domínio de login) | Alta | Alto | Decisão de negócio antes de divulgar a URL; restringir provider/domínio quando aprovado | Requisitos/Responsável humano |
+| RISCO-32 | Modelo Client-Only sem autoridade server-side, contrariando a diretriz original | Alta | Alto | Ratificação explícita do modelo; regras revisadas; considerar Functions em nova ADR | Arquiteto/Responsável humano |

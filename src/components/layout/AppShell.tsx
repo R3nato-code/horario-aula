@@ -95,12 +95,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           ativo: (atual) => rotaAtiva(atual, '/notificacoes'),
           contagem: naoLidas,
         },
-        {
-          para: '/assistente',
-          rotulo: 'Assistente',
-          icone: 'mensagem',
-          ativo: (atual) => rotaAtiva(atual, '/assistente'),
-        },
       ],
     },
   ];

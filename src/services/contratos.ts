@@ -87,10 +87,6 @@ export interface FiltroHistorico {
   tipo?: TipoRegistroHistorico;
 }
 
-export interface RespostaAssistente {
-  resposta: string;
-}
-
 export interface ServicoEscola {
   listarCatalogo(): Promise<Catalogo>;
   listarAulas(filtro?: FiltroAulas): Promise<AulaDetalhada[]>;
@@ -119,16 +115,11 @@ export interface ServicoEscola {
   listarTurmas(): Promise<Turma[]>;
 }
 
-export interface ServicoAssistente {
-  perguntar(pergunta: string, usuario: Usuario): Promise<RespostaAssistente>;
-}
-
 export interface Servicos {
   modo: ModoDados;
   avisoConfiguracao: string | null;
   auth: ServicoAutenticacao;
   escola: ServicoEscola;
-  assistente: ServicoAssistente;
 }
 
 export type { ErroDeServico };

@@ -1,24 +1,4 @@
-{
-  // "functions": [
-  //   {
-  //     "source": "functions",
-  //     "codebase": "default",
-  //     "runtime": "nodejs22",
-  //     "predeploy": [
-  //       "npm --prefix \"$RESOURCE_DIR\" run build"
-  //     ],
-  //     "ignore": [
-  //       "node_modules",
-  //       ".git",
-  //       "src",
-  //       "lib/scripts",
-  //       "**/*.test.js",
-  //       "**/*.test.js.map",
-  //       "*.log",
-  //       "*.md"
-  //     ]
-  //   }
-  // ],
+﻿{
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
@@ -26,9 +6,6 @@
   "emulators": {
     "auth": {
       "port": 9099
-    },
-    "functions": {
-      "port": 5001
     },
     "firestore": {
       "port": 8080

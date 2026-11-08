@@ -7,7 +7,7 @@ import { ROTULOS_PAPEL } from '@/lib/constantes';
 import type { Papel } from '@/types/dominio';
 
 const DESCRICOES_PAPEL: Record<Papel, string> = {
-  aluno: 'Consulta de horários, favoritos, notificações e assistente.',
+  aluno: 'Consulta de horários, favoritos e notificações.',
   professor: 'Mesmo nível de acesso do aluno nesta versão.',
   admin: 'Gestão de cadastros, horários, configuração e histórico.',
   gestor: 'Acesso administrativo ampliado, sujeito às permissões do servidor.',

@@ -1,10 +1,11 @@
 # Visão geral da arquitetura
 
 **Projeto:** Sistema de Gestão e Consulta de Horários Escolares
-**Versão:** 1.0 (decisões de desbloqueio do Back-End)
-**Data:** 03/11/2026
+**Versão:** 2.1 (Client-Only + deploy no Render)
+**Data:** 07/11/2026
 **Responsável:** Arquiteto
-**Status:** decisões registradas; implementação liberada para os módulos cobertos por ADR-01 a ADR-07.
+**Status:** modelo Client-Only mantido; canal de entrega especificado em ADR-08 (proposta) e
+`docs/arquitetura/deploy-render.md`.
 
 ---
 
@@ -12,17 +13,13 @@
 
 | Assunto | Documento canônico |
 |---|---|
-| Requisitos | `Plano/requisitos/Plano_requisitos_Sistema_escolar.md` e `Plano/requisitos/matriz-rastreabilidade.md` |
-| Schema e identidade da aula | `docs/arquitetura/modelo-dados-firestore.md` |
-| Contratos React ↔ Cloud Functions | `docs/arquitetura/integracoes.md` |
+| Requisitos | `Plano/requisitos/Plano_requisitos_Sistema_escolar.md` |
+| Schema da aula | `docs/arquitetura/modelo-dados-firestore.md` |
 | Padrões técnicos | `docs/arquitetura/padroes-tecnicos.md` |
 | Segurança e regras | `docs/arquitetura/seguranca-regras.md` |
-| Decisões | `docs/arquitetura/decisoes/ADR-01.md` a `ADR-07.md` |
-| Implementação existente | `docs/backend/*` e código em `src/` e `functions/src/` |
-
-> `Plano/arquitetura/modelo-dados-firestore.md` passa a ser **documento histórico**. A seção 4
-> (horários das 14 turmas) permanece como fonte dos dados do seed, mas o schema canônico é o
-> deste pacote. Ver `ADR-01`.
+| Transição Client-Only | `docs/arquitetura/guia-refatoracao-client-side.md` |
+| Deploy no Render | `docs/arquitetura/deploy-render.md` |
+| Decisão de hospedagem | `docs/arquitetura/decisoes/ADR-08.md` |
 
 ---
 
@@ -30,70 +27,75 @@
 
 | ID | Componente | Responsabilidade | Fronteira de confiança |
 |---|---|---|---|
-| ARC-01 | React + TypeScript + PWA no Render | Interface, leitura autorizada, coleta de intenções. | Não é autoridade. |
-| ARC-02 | Firebase Authentication (Google) | Identidade do usuário. | Fonte da identidade. |
-| ARC-03 | Cloud Firestore | Persistência e leitura direta controlada. | Protegido por regras. |
-| ARC-04 | Cloud Functions (v2, callable) | Validação, autorização, conflitos, histórico, massa, notificações e IA. | Autoridade do sistema. |
-| ARC-05 | Gemini API | Interpretação de perguntas do assistente. | Apenas via ARC-04. |
-| ARC-06 | Secret Manager | Chave da Gemini API. | Nunca no cliente/repositório. |
-| ARC-07 | GitHub | Versionamento e revisão. | — |
+| ARC-01 | React + TypeScript + PWA | Interface, validações de negócio, acesso direto ao banco. | **Autoridade de fato no modelo Client-Only atual**; ver RISCO-32. |
+| ARC-02 | Firebase Authentication | Identidade do usuário (Google e e-mail/senha). | Fonte da identidade. |
+| ARC-03 | Cloud Firestore | Persistência, leitura e escrita diretas. | Protegido por regras estáticas. |
+| ARC-07 | Render Static Site + CDN | Build, hospedagem do `dist/`, TLS, CDN, rewrite e cabeçalhos. | Infraestrutura de entrega; **não executa lógica nem autoriza**. |
+
+**Nota sobre ARC-04 a ARC-06:** Cloud Functions, Gemini e Secret Manager pertencem ao
+modelo server-side histórico (ADR-01 a ADR-07) e **não fazem parte do deploy atual**. Se
+forem reintroduzidos, serão publicados pelo Firebase CLI, nunca pelo Render.
+
+---
 
 ## 3. Diagrama de contexto
 
 ```mermaid
 graph TD
-    U((Usuário)) -->|HTTPS| PWA[ARC-01 React + PWA / Render]
-    PWA -->|Login Google| AUTH[ARC-02 Firebase Auth]
-    PWA -->|Leitura autorizada| FS[(ARC-03 Cloud Firestore)]
-    PWA -->|Callable autenticada| CF[ARC-04 Cloud Functions]
-    CF -->|Admin SDK: valida e grava| FS
-    CF -->|Perguntas e ferramentas| GEM[ARC-05 Gemini API]
-    CF -->|Lê segredo| SM[ARC-06 Secret Manager]
-    CF -->|Gatilhos Auth/Firestore| FS
+    U((Usuário)) -->|HTTPS| EDGE[ARC-07 Render<br/>Static Site + CDN]
+    EDGE -->|entrega dist/| PWA[ARC-01 React + PWA]
+    PWA -->|Login Google / e-mail| AUTH[ARC-02 Firebase Auth]
+    PWA -->|Valida e grava direto| FS[(ARC-03 Cloud Firestore)]
 ```
+
+---
 
 ## 4. Fronteiras de confiança
 
-1. **Cliente não é autoridade.** Controles visuais não substituem validação no servidor.
-2. **Leitura direta é exceção controlada.** Catálogo, aulas, configuração, notificações e
-   favoritos podem ser lidos pelo cliente somente conforme as regras. Histórico, operações,
-   outbox e uso do assistente são fechados.
-3. **Escritas de domínio são server-side.** Catálogo, aulas, configuração e histórico só são
-   gravados por Cloud Functions com Admin SDK. Exceções deliberadas: favoritos e marcação de
-   notificação como lida, ambos restritos ao próprio usuário por regra (ADR-05).
-4. **Histórico é append-only.** Nem administrador edita ou apaga histórico pelo cliente;
-   consulta é callable autorizada (ADR-04).
-5. **Identidade é do Firebase Auth.** O perfil em `users/{uid}` é derivado e não concede
-   privilégio por si só; a autorização server-side lê `role` do perfil (claims permanecem
-   pendentes de decisão própria).
+1. **Cliente é a autoridade de fato.** Todo controle de integridade é feito no React e
+   validado pelas `firestore.rules`.
+2. **Leitura/escrita direta é o padrão.** Não há camada de abstração via funções.
+3. **Segurança via regras estáticas.** A proteção contra acesso indevido depende das regras
+   do Firestore, que validam perfis lendo `users/{uid}.role`.
+4. **Integridade via batch/transação.** Operações multi-documento usam `writeBatch` ou
+   `runTransaction` no front-end.
+5. **Render não é fronteira de autorização.** O Static Site entrega apenas conteúdo
+   público; não há sessão, cookie de servidor ou API própria no Render.
+6. **Configuração pública não é segredo.** `VITE_FIREBASE_*` é embutida no bundle. A
+   segurança depende das regras e dos domínios autorizados, não do sigilo da API key.
+7. **Regras e índices têm release próprio.** O deploy do Render não publica
+   `firestore.rules` nem `firestore.indexes.json`.
 
-## 5. Estado das decisões
+---
 
-| Lacuna | Decisão | ADR | Status | Desbloqueia |
-|---|---|---|---|---|
-| LAC-08 | Schema canônico em camelCase e coleções em português (Opção B). | ADR-01 | Aprovada | Índices, CRUD, seed, histórico, notificações. |
-| LAC-02 | ID determinístico da aula e horários derivados da configuração. | ADR-02 | Aprovada | Aulas, consultas, conflitos, seed. |
-| LAC-05 | Limite de 200 aulas, transação única e outbox. | ADR-03 | Aprovada | Edição em massa. |
-| LAC-10/LAC-11 | Histórico único, append-only, leitura por `admin`/`gestor`. | ADR-04 | Aprovada | Auditoria e consulta. |
-| LAC-13 | Notificações com TTL de 180 dias e favoritos por usuário. | ADR-05 | Aprovada | RF09, RF43–RF47. |
-| LAC-16 | Ciclo ativo → arquivado → excluído, com bloqueio por aulas ativas. | ADR-06 | Aprovada | Exclusão segura. |
-| LAC-07 | Ferramentas allowlist, cotas e logs mínimos do assistente. | ADR-07 | Aprovada | RF10. |
+## 5. Deploy e operação
 
-## 6. Lacunas que continuam abertas (não bloqueiam o primeiro CRUD/seed)
-
-| Lacuna | Efeito |
+| Item | Decisão |
 |---|---|
-| LAC-03 / RF58 | Concessão/revogação de `admin` ainda sem contrato final. |
-| LAC-09 | Gestão de usuários por administrador não definida. |
-| LAC-14 | Calendário escolar não existe; a exclusão usa “aulas ativas”, não “futuras”. |
-| LAC-15 | Slot vago: ausência de documento é o padrão; “vaga reservada” não foi decidida. |
-| LAC-20 | Restrição de domínio Google e rate limit de login não decididos. |
-| LAC-21 | Fuso `America/Sao_Paulo` assumido no assistente, pendente de confirmação. |
-| LAC-23/LAC-24 | Entidade sala e extensão formal dos RFs continuam pendentes; `salas` fechada. |
-| JDK 21 | Testes de regras do Firestore continuam bloqueados no ambiente atual. |
+| Tipo no Render | Static Site (`runtime: static`), sem Web Service. |
+| Build | `npm ci && npm run build`. |
+| Publicação | `dist/`. |
+| Variáveis | `VITE_DATA_MODE=firebase` + configuração pública do Firebase, em tempo de build. |
+| Roteamento | Hash routing; rewrite `/* → /index.html` como defesa em profundidade. |
+| Autenticação | Domínio `*.onrender.com` e customizado autorizados no Firebase Auth. |
+| Firestore | Regras e índices publicados pelo Firebase CLI, em etapa separada. |
+| PWA | `sw.js` servido com `no-cache`; cache apenas de shell estático. |
+| Rollback | Histórico de deploys do Render ou `git revert`. |
 
-## 7. Fora de escopo desta entrega
+Detalhes operacionais, checklist e troubleshooting: `docs/arquitetura/deploy-render.md`.
 
-- Implementar código, funções, regras, índices ou seed.
-- Alterar requisitos funcionais (RF) ou aprovar RF54–RF58.
-- Definir autenticação por claims, gestão de usuários ou calendário escolar.
+---
+
+## 6. Riscos e lacunas abertas
+
+| ID | Item | Situação |
+|---|---|---|
+| RISCO-23 | Regras sem teste automatizado (JDK 21). | Aberto; revisão manual antes de publicar. |
+| RISCO-24 | Produção em modo demo por env ausente. | Mitigado por checklist; falha de build recomendada. |
+| RISCO-25 | Login quebrado por domínio não autorizado. | Mitigado pela configuração do Firebase Auth. |
+| RISCO-26 | PWA/CDN com versão antiga. | Mitigado por `no-cache`; versionamento do SW recomendado. |
+| RISCO-31 | Acesso público amplo (LAC-20). | **Aberto**; decisão de negócio pendente. |
+| RISCO-32 | Modelo Client-Only sem autoridade server-side. | **Herdado**; ver `guia-refatoracao-client-side.md`. |
+
+LAC-20 (restrição de domínio de login) e LAC-21 (fuso) continuam abertas. A publicação da
+URL não deve ser tratada como decisão de escopo de acesso.

@@ -7,6 +7,10 @@
 > massa + notificação) estão em `docs/arquitetura/integracoes.md` para ficarem próximos
 > dos contratos.
 
+> **Estado atual:** o modelo vigente é Client-Only (`visao-geral.md` v2.1). A seção 1
+> reflete o modelo server-side histórico (ADR-01 a ADR-07) e é mantida para rastreabilidade.
+> O diagrama de implantação vigente é a **seção 6**.
+
 ---
 
 ## 1. Contexto e fronteiras de confiança
@@ -205,3 +209,41 @@ flowchart TD
     D -->|não| F[Transação: configuracao/atual + histórico]
     F --> G[Aulas passam a exibir novos horários derivados]
 ```
+
+---
+
+## 6. Implantação no Render (estado atual)
+
+```mermaid
+graph TB
+    subgraph GitHub["GitHub"]
+        REPO[(Repositório<br/>branch main)]
+    end
+
+    subgraph Render["Render — Static Site + CDN"]
+        BUILD["Build<br/>npm ci && npm run build"]
+        DIST["dist/<br/>index.html · assets · sw.js · manifest · icons"]
+        EDGE["Edge/CDN + TLS<br/>rewrite /* → /index.html<br/>headers de segurança"]
+    end
+
+    subgraph Firebase["Firebase (gerenciado)"]
+        AUTH["Authentication<br/>Google + e-mail/senha"]
+        FS[("Cloud Firestore<br/>regras + índices")]
+    end
+
+    USER["Usuário<br/>navegador / PWA"]
+
+    REPO -->|push| BUILD --> DIST --> EDGE
+    EDGE -->|HTTPS| USER
+    USER -->|signInWithPopup / e-mail| AUTH
+    USER -->|leitura e escrita autorizadas| FS
+```
+
+| Etapa | Responsável | Artefato |
+|---|---|---|
+| Build | Render | `dist/` |
+| Publicação | Render | Static Site + CDN |
+| Autenticação | Firebase | domínios autorizados |
+| Dados | Firebase | `firestore.rules` + `firestore.indexes.json` |
+
+Detalhes: `docs/arquitetura/deploy-render.md` e `docs/arquitetura/decisoes/ADR-08.md`.

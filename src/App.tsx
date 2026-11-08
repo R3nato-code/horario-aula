@@ -14,7 +14,6 @@ import { ConsultaProfessoresPage } from '@/features/consulta/ConsultaProfessores
 import { ProfessorHorarioPage } from '@/features/consulta/ProfessorHorarioPage';
 import { FavoritosPage } from '@/features/favoritos/FavoritosPage';
 import { NotificacoesPage } from '@/features/notificacoes/NotificacoesPage';
-import { AssistentePage } from '@/features/assistente/AssistentePage';
 import { PainelPage } from '@/features/painel/PainelPage';
 import {
   DisciplinasAdminPage,
@@ -86,7 +85,6 @@ function Rotas() {
 
   if (segmentos[0] === 'favoritos' && segmentos.length === 1) return <FavoritosPage />;
   if (segmentos[0] === 'notificacoes' && segmentos.length === 1) return <NotificacoesPage />;
-  if (segmentos[0] === 'assistente' && segmentos.length === 1) return <AssistentePage />;
 
   if (segmentos[0] === 'painel') {
     if (!administra) return <AcessoNegadoPage />;

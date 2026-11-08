@@ -6,6 +6,11 @@
 caminhos das coleções.
 **Decisões:** ADR-01, ADR-04, ADR-05.
 
+> **Estado atual:** o repositório está no modelo Client-Only. A matriz abaixo descreve o
+> modelo server-side histórico (ADR-01 a ADR-07); as regras vigentes estão em
+> `firestore.rules`. Para a superfície pública do deploy, ver
+> `docs/arquitetura/deploy-render.md`.
+
 ---
 
 ## 1. Modelo de ameaças
@@ -137,6 +142,18 @@ mesmoUsuario(uid) = autenticado() && request.auth.uid == uid
 | `.env` do front-end | Apenas configuração pública do Firebase; nunca chave de IA. |
 | Render | Hospeda o front-end; não executa Cloud Functions. |
 | Emuladores | Podem usar credenciais locais; nunca commitar. |
+
+### 5.1 Superfície pública no Render
+
+| Item | Regra |
+|---|---|
+| Conteúdo publicado | Apenas `dist/` (HTML, JS, CSS, ícones, manifest, service worker). |
+| Configuração embutida | Somente `VITE_*` públicas do Firebase. Nenhum segredo. |
+| Autorização | Firebase Authentication + `firestore.rules`; o Render não autentica nem autoriza. |
+| Domínios de login | `*.onrender.com` e domínio customizado precisam estar em **Authorized domains**. |
+| Previews de PR | Desligados por padrão; cada preview teria domínio próprio e exigiria autorização manual. |
+| Cabeçalhos | COOP `same-origin-allow-popups`, `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, HSTS. |
+| Regras/índices | Publicados pelo Firebase CLI, em etapa separada do build do Render. |
 
 ---
 

@@ -1,7 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getFunctions, type Functions } from 'firebase/functions';
 
 /**
  * Inicialização do Firebase restrita a configuração pública.
@@ -41,18 +40,4 @@ export function obterFirestore(): Firestore {
   return getFirestore(obterAplicacaoFirebase());
 }
 
-/**
- * Região das Cloud Functions callable.
- *
- * O backend usa `FUNCTIONS_REGION` com padrão `southamerica-east1`
- * (`functions/src/core/config.ts`). A variável pública apenas espelha a região
- * para que o cliente encontre as funções callable; não contém segredo.
- *
- * O perfil do usuário (`users/{uid}.role`) é lido diretamente no Firestore
- * pelo serviço de autenticação; não há mais chamada callable para esse fim.
- */
-const regiaoFuncoes = import.meta.env.VITE_FUNCTIONS_REGION?.trim() || 'southamerica-east1';
 
-export function obterFuncoesFirebase(): Functions {
-  return getFunctions(obterAplicacaoFirebase(), regiaoFuncoes);
-}

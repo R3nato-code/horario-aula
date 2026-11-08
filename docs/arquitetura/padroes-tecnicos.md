@@ -90,3 +90,17 @@
 | PAD-38 | Mudança incompatível de payload exige análise de impacto (`IMP-xx`) e, se necessário, versionamento da callable (`v2`). |
 | PAD-39 | Não renumerar ADRs, `ENT`, `FL`, `PERM`, `IDX` ou `RISCO` publicados. |
 | PAD-40 | Documentação viva: toda decisão relevante atualiza o artefato correspondente em `docs/arquitetura/`. |
+
+## 10. Build, deploy e ambientes
+
+| PAD | Regra |
+|---|---|
+| PAD-41 | O build de produção usa `npm ci` e o `package-lock.json` versionado. `npm install` não é aceito como comando de release. |
+| PAD-42 | A versão do Node é fixada no ambiente de build (`NODE_VERSION` ou `.node-version`). O build não pode depender da versão padrão do provedor. |
+| PAD-43 | Variáveis `VITE_*` são **públicas** e embutidas no bundle. Segredos, service accounts e chaves de IA nunca usam esse prefixo. |
+| PAD-44 | Variáveis `VITE_*` são resolvidas em tempo de build; alteração exige novo deploy, não apenas restart. |
+| PAD-45 | O modo de produção deve ser explícito: `VITE_DATA_MODE=firebase`. A partir do primeiro release no Render, o build deve falhar se a configuração Firebase estiver incompleta, em vez de cair silenciosamente em demonstração. Implementação pendente. |
+| PAD-46 | O roteamento por hash é o contrato de compatibilidade com hospedagem estática. History routing exige rewrite e teste de deep link. |
+| PAD-47 | Regras e índices do Firestore são publicados pelo Firebase CLI, em etapa separada do build do front-end. Nenhum release é considerado completo sem os dois. |
+| PAD-48 | Assets com hash usam cache imutável; `sw.js` e `manifest.webmanifest` usam `no-cache`. Cabeçalhos de segurança são verificados após o deploy. |
+| PAD-49 | Todo deploy passa pelo checklist e pelo smoke test de `docs/arquitetura/deploy-render.md`. |

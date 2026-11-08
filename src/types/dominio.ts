@@ -111,10 +111,12 @@ export interface RegistroHistorico {
   tipo: TipoRegistroHistorico;
   entidade: string;
   entidadeId: string;
+  entidadeNome?: string;
   descricao: string;
   alteracao: AlteracaoHistorico;
   responsavelId: string;
   responsavelNome: string;
+  responsavelEmail?: string;
   timestamp: string;
 }
 
