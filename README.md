@@ -130,6 +130,16 @@ interface — previstos para versão futura.
 | 7 | Histórico, favoritos, notificações e PWA | Concluído |
 | 8 | Testes, correções e publicação | Concluído |
 
+## Agentes Criados
+
+| # | Nome |
+|---|---|
+| 1 | Engenheiro de Requisitos |
+| 2 | Arquiteto |
+| 3 | Front-End |
+| 4 | Back-End |
+| 5 | Testador |
+| 6 | Cybersegurança |
 
 **Estratégia de testes:** validação manual por checklist dos fluxos críticos (login, consulta,
 edição da grade, conflitos, arquivamento, histórico e instalação do PWA), complementada por
