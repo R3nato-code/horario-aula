@@ -6,6 +6,7 @@ import { useConsulta } from '@/app/useConsulta';
 import { useServicos } from '@/app/ContextoServicos';
 import { useTituloPagina } from '@/lib/useTituloPagina';
 import { normalizarTexto } from '@/lib/utilidades';
+import { navegar } from '@/app/roteamento';
 
 export function ConsultaProfessoresPage() {
   useTituloPagina('Aulas por professor');
@@ -83,7 +84,7 @@ export function ConsultaProfessoresPage() {
             />
           ) : (
             <div className="envoltorio-tabela">
-              <table className="tabela">
+              <table className="tabela tabela--professores">
                 <caption>Professores ativos e quantidade de aulas na semana</caption>
                 <thead>
                   <tr>
@@ -96,7 +97,11 @@ export function ConsultaProfessoresPage() {
                 </thead>
                 <tbody>
                   {professores.map((professor) => (
-                    <tr key={professor.id}>
+                    <tr
+                      key={professor.id}
+                      className="tabela__linha-clicavel"
+                      onClick={() => navegar(`/consulta/professor/${professor.id}`)}
+                    >
                       <th scope="row" style={{ fontWeight: 600 }}>
                         {professor.nome}
                       </th>
@@ -106,6 +111,7 @@ export function ConsultaProfessoresPage() {
                           <a
                             className="botao botao--fantasma botao--pequeno"
                             href={`#/consulta/professor/${professor.id}`}
+                            aria-label={`Ver aulas do professor ${professor.nome}`}
                           >
                             Ver aulas
                             <Icone nome="seta-direita" tamanho={14} />

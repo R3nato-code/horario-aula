@@ -7,7 +7,7 @@ import { Campo } from '@/components/ui/Campo';
 import { Modal } from '@/components/ui/Modal';
 import { SeloStatus } from '@/components/ui/Selos';
 import { Icone } from '@/components/Icone';
-import { GradeSemanal } from '@/features/horarios/GradeSemanal';
+import { GradeSemanal, type ReferenciaCelula } from '@/features/horarios/GradeSemanal';
 import { useConsulta } from '@/app/useConsulta';
 import { useServicos } from '@/app/ContextoServicos';
 import { useAutenticacao } from '@/app/ContextoAutenticacao';
@@ -37,6 +37,9 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
   const [salvando, setSalvando] = useState(false);
   const [erroFormulario, setErroFormulario] = useState<string | null>(null);
   const [detalheErro, setDetalheErro] = useState<string | null>(null);
+  const [trocando, setTrocando] = useState(false);
+  const [erroTroca, setErroTroca] = useState<string | null>(null);
+  const [detalheErroTroca, setDetalheErroTroca] = useState<string | null>(null);
 
   const { dados, carregando, erro, recarregar } = useConsulta(async () => {
     const catalogo = await escola.listarCatalogo();
@@ -86,6 +89,8 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
     setProfessorId(aula?.professorId ?? '');
     setErroFormulario(null);
     setDetalheErro(null);
+    setErroTroca(null);
+    setDetalheErroTroca(null);
   };
 
   const salvar = async () => {
@@ -116,6 +121,41 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
       setDetalheErro(ehErroDeServico(falha) ? falha.detalhes : null);
     } finally {
       setSalvando(false);
+    }
+  };
+
+  const trocarAulas = async (origem: ReferenciaCelula, destino: ReferenciaCelula) => {
+    if (!turma || !usuario || trocando) return;
+
+    const aulaDestino = aulas.find(
+      (aula) => aula.diaSemana === destino.dia && aula.periodo === destino.periodo,
+    );
+
+    setTrocando(true);
+    setErroTroca(null);
+    setDetalheErroTroca(null);
+    try {
+      await escola.trocarAulas(
+        {
+          turmaId: turma.id,
+          origem: { diaSemana: origem.dia, periodo: origem.periodo },
+          destino: { diaSemana: destino.dia, periodo: destino.periodo },
+        },
+        usuario,
+      );
+      notificar(
+        'sucesso',
+        aulaDestino
+          ? 'Aulas trocadas de posição. A grade e o histórico foram atualizados.'
+          : 'Aula movida de posição. A grade e o histórico foram atualizados.',
+      );
+      recarregar();
+    } catch (falha) {
+      setErroTroca(mensagemDoErro(falha));
+      setDetalheErroTroca(ehErroDeServico(falha) ? falha.detalhes : null);
+      notificar('erro', mensagemDoErro(falha));
+    } finally {
+      setTrocando(false);
     }
   };
 
@@ -156,6 +196,8 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
                   onChange={(evento) => {
                     setTurmaSelecionada(evento.target.value);
                     setCelula(null);
+                    setErroTroca(null);
+                    setDetalheErroTroca(null);
                   }}
                   style={{ minWidth: '240px' }}
                 >
@@ -182,11 +224,6 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
             ) : null}
           </div>
 
-          <Alerta tipo="info" titulo="Validação de conflitos">
-            A pré-validação exibida neste ambiente é local. A validação definitiva de professor,
-            turma e sala deve ocorrer no servidor, conforme D-03 e RF29–RF35.
-          </Alerta>
-
           {!turma ? (
             <EstadoVazio
               titulo="Selecione uma turma"
@@ -199,10 +236,26 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
             </Alerta>
           ) : (
             <>
+              {erroTroca ? (
+                <Alerta tipo="erro" titulo="Troca não aplicada">
+                  {erroTroca}
+                  {detalheErroTroca ? (
+                    <p className="texto-pequeno" style={{ marginTop: '6px' }}>
+                      {detalheErroTroca}
+                    </p>
+                  ) : null}
+                </Alerta>
+              ) : null}
               {carregando ? (
                 <span className="carregando">
                   <span className="carregando__marca" aria-hidden="true" />
                   Atualizando grade…
+                </span>
+              ) : null}
+              {trocando ? (
+                <span className="carregando" role="status">
+                  <span className="carregando__marca" aria-hidden="true" />
+                  Trocando aulas…
                 </span>
               ) : null}
               <GradeSemanal
@@ -210,13 +263,10 @@ export function HorariosAdminPage({ turmaIdInicial }: Props) {
                 aulas={aulas}
                 editavel
                 onEditar={abrirCelula}
+                onTrocar={trocarAulas}
+                trocando={trocando}
                 rotuloTabela={`Grade editável da turma ${turma.nome}`}
               />
-              <p className="texto-pequeno texto-secundario">
-                A edição em massa (RF23–RF30) será habilitada após a definição dos limites e da
-                estratégia de atomicidade (LAC-05). Nenhuma seleção múltipla é oferecida nesta
-                versão.
-              </p>
             </>
           )}
         </div>

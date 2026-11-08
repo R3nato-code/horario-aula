@@ -20,7 +20,11 @@ function CartaoTurma({ turma }: { turma: Turma }) {
     <article className={`turma-cartao${turma.modalidade === 'tecnico' ? ' turma-cartao--tecnico' : ''}`}>
       <div className="turma-cartao__topo">
         <div>
-          <a className="turma-cartao__nome turma-cartao__link" href={`#/consulta/turma/${turma.id}`}>
+          <a
+            className="turma-cartao__nome turma-cartao__link"
+            href={`#/consulta/turma/${turma.id}`}
+            aria-label={`Ver horário da turma ${turma.nome}`}
+          >
             {turma.nome}
           </a>
           <p className="turma-cartao__meta">
@@ -41,10 +45,13 @@ function CartaoTurma({ turma }: { turma: Turma }) {
       </div>
       <p className="turma-cartao__meta">Período da manhã · seis aulas por dia</p>
       <div className="turma-cartao__rodape">
-        <a className="botao botao--fantasma botao--pequeno" href={`#/consulta/turma/${turma.id}`}>
+        <span
+          className="botao botao--fantasma botao--pequeno turma-cartao__atalho"
+          aria-hidden="true"
+        >
           Ver horário
           <Icone nome="seta-direita" tamanho={14} />
-        </a>
+        </span>
         {favorita ? <span className="selo selo--ativo">Favorita</span> : null}
       </div>
     </article>

@@ -229,9 +229,7 @@ function FormularioConfiguracao({
       </section>
 
       <Alerta tipo="aviso" titulo="Impacto nos horários existentes">
-        A alteração dos horários não migra automaticamente as aulas já cadastradas. A verificação
-        de impacto e a estratégia de aplicação devem ser definidas no servidor (RF39 e LAC-12). No
-        ambiente de demonstração, a mudança afeta apenas a exibição dos horários.
+        A alteração dos horários não migra automaticamente as aulas já cadastradas.
       </Alerta>
     </div>
   );

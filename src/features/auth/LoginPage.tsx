@@ -80,9 +80,7 @@ export function LoginPage() {
         </div>
 
         <p className="login__rodape">
-          Aplicação web instalável. Operações sensíveis são executadas no servidor e
-          validadas pelas regras de segurança. Nenhuma chave privada é exposta ao
-          navegador.
+          Aplicação web instalável, acessível pelo navegador e no celular.
         </p>
       </section>
 
@@ -118,8 +116,8 @@ export function LoginPage() {
           {modo === 'demo' ? (
             <div className="login__mensagens">
               <Alerta tipo="info" titulo="Ambiente de demonstração">
-                Os formulários de e-mail e Google exigem o Firebase configurado. Para
-                navegar agora, use um perfil de demonstração ao final da página.
+                Os formulários de acesso não estão disponíveis na demonstração. Para navegar,
+                escolha um perfil de teste ao final da página.
               </Alerta>
             </div>
           ) : null}

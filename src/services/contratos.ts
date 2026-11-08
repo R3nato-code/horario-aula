@@ -76,6 +76,24 @@ export interface EntradaAula {
   professorId: string;
 }
 
+/** Coordenada de uma célula da grade semanal. */
+export interface SlotAula {
+  diaSemana: DiaSemana;
+  periodo: Aula['periodo'];
+}
+
+/**
+ * Troca (ou move) o conteúdo de duas células da mesma turma.
+ *
+ * Quando o destino já possui aula, disciplina e professor são invertidos entre
+ * os dois slots. Quando o destino está vazio, a aula da origem é movida.
+ */
+export interface EntradaTrocaAulas {
+  turmaId: string;
+  origem: SlotAula;
+  destino: SlotAula;
+}
+
 export type EntradaCadastro =
   | { tipo: 'professor'; nome: string }
   | { tipo: 'disciplina'; nome: string }
@@ -91,6 +109,11 @@ export interface ServicoEscola {
   listarCatalogo(): Promise<Catalogo>;
   listarAulas(filtro?: FiltroAulas): Promise<AulaDetalhada[]>;
   salvarAula(entrada: EntradaAula, responsavel: Usuario): Promise<Aula>;
+  /**
+   * Troca duas células da grade da mesma turma em uma única operação atômica.
+   * Se o destino estiver vazio, a aula da origem apenas se desloca.
+   */
+  trocarAulas(entrada: EntradaTrocaAulas, responsavel: Usuario): Promise<void>;
   salvarConfiguracao(
     configuracao: ConfiguracaoHorarios,
     responsavel: Usuario,

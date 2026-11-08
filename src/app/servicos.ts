@@ -26,7 +26,7 @@ export function obterServicos(): Servicos {
     modo: 'demo',
     avisoConfiguracao:
       modoSolicitado === 'firebase'
-        ? 'O modo Firebase foi solicitado, mas a configuração pública está incompleta. A aplicação foi iniciada com dados locais de demonstração.'
+        ? 'Não foi possível conectar ao serviço de dados. A aplicação está exibindo dados de demonstração.'
         : null,
     auth: new AutenticacaoDemo(),
     escola: new EscolaDemo(),

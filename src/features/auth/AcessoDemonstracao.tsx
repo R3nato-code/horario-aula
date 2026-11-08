@@ -8,9 +8,9 @@ import type { Papel } from '@/types/dominio';
 
 const DESCRICOES_PAPEL: Record<Papel, string> = {
   aluno: 'Consulta de horários, favoritos e notificações.',
-  professor: 'Mesmo nível de acesso do aluno nesta versão.',
+  professor: 'Consulta de horários, favoritos e notificações.',
   admin: 'Gestão de cadastros, horários, configuração e histórico.',
-  gestor: 'Acesso administrativo ampliado, sujeito às permissões do servidor.',
+  gestor: 'Acesso administrativo ampliado.',
 };
 
 const ICONES_PAPEL: Record<Papel, NomeIcone> = {
@@ -47,9 +47,7 @@ export function AcessoDemonstracao() {
       <p className="rotulo-secao">Ambiente de demonstração</p>
       <h3 id="titulo-demonstracao">Entrar com um perfil de teste</h3>
       <p className="login__texto">
-        Os dados são locais e não há autenticação real. Escolha um perfil para navegar
-        pelas telas; as permissões definitivas são validadas pelo servidor no ambiente
-        Firebase.
+        Escolha um perfil para explorar o sistema com dados de exemplo.
       </p>
 
       {falha ? (

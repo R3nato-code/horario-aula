@@ -409,6 +409,18 @@ select.campo__controle {
   background-color: #f7f7f1;
 }
 
+.tabela__linha-clicavel {
+  cursor: pointer;
+}
+
+.tabela__linha-clicavel:hover {
+  background-color: var(--superficie-verde);
+}
+
+.tabela__linha-clicavel:active {
+  background-color: var(--verde);
+}
+
 .tabela__acoes {
   display: flex;
   flex-wrap: wrap;

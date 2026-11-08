@@ -21,9 +21,11 @@ import {
   horarioDoPeriodo,
 } from '@/lib/utilidades';
 import { validarConfiguracao } from '@/lib/validacaoHorarios';
+import { validarTrocaAulas } from '@/services/validacao';
 import type {
   EntradaAula,
   EntradaSalvarCadastro,
+  EntradaTrocaAulas,
   FiltroAulas,
   FiltroHistorico,
   ServicoEscola,
@@ -164,7 +166,6 @@ export class EscolaDemo implements ServicoEscola {
         `O professor ${professor.nome} já está atribuído à turma ${
           turmaConflitante?.nome ?? conflito.turmaId
         } em ${nomeDoDia(conflito.diaSemana)}, ${conflito.periodo}ª aula (${horario.inicio}–${horario.fim}).`,
-        'Pré-validação local do ambiente de demonstração. A validação definitiva deve ocorrer no servidor.',
       );
     }
 
@@ -227,6 +228,192 @@ export class EscolaDemo implements ServicoEscola {
 
     this.persistir();
     return clonar(atual);
+  }
+
+  async trocarAulas(entrada: EntradaTrocaAulas, responsavel: Usuario): Promise<void> {
+    const turma = this.localizar(this.banco.turmas, entrada.turmaId, 'Turma');
+    if (turma.status === 'arquivado') {
+      throw new ErroDeServico(
+        'validacao',
+        'A turma está arquivada e não pode receber alterações de horário.',
+      );
+    }
+
+    const { origem, destino } = entrada;
+    if (
+      origem.diaSemana < 1 ||
+      origem.diaSemana > 5 ||
+      destino.diaSemana < 1 ||
+      destino.diaSemana > 5
+    ) {
+      throw new ErroDeServico('validacao', 'As aulas só podem ocorrer de segunda a sexta-feira.');
+    }
+    if (origem.periodo < 1 || origem.periodo > 6 || destino.periodo < 1 || destino.periodo > 6) {
+      throw new ErroDeServico('validacao', 'O período da aula deve estar entre 1 e 6.');
+    }
+
+    const idOrigem = criarIdAula(turma.id, origem.diaSemana, origem.periodo);
+    const idDestino = criarIdAula(turma.id, destino.diaSemana, destino.periodo);
+    if (idOrigem === idDestino) {
+      throw new ErroDeServico('validacao', 'Selecione uma célula diferente para receber a aula.');
+    }
+
+    const aulaOrigem = this.banco.aulas.find((aula) => aula.id === idOrigem);
+    if (!aulaOrigem) {
+      throw new ErroDeServico('validacao', 'A célula de origem não possui aula para mover.');
+    }
+    const aulaDestino = this.banco.aulas.find((aula) => aula.id === idDestino) ?? null;
+
+    if (
+      aulaDestino &&
+      aulaDestino.disciplinaId === aulaOrigem.disciplinaId &&
+      aulaDestino.professorId === aulaOrigem.professorId
+    ) {
+      return;
+    }
+
+    const candidatas: Aula[] = [
+      {
+        ...aulaOrigem,
+        id: idDestino,
+        diaSemana: destino.diaSemana,
+        periodo: destino.periodo,
+      },
+    ];
+    if (aulaDestino) {
+      candidatas.push({
+        ...aulaDestino,
+        id: idOrigem,
+        diaSemana: origem.diaSemana,
+        periodo: origem.periodo,
+      });
+    }
+
+    const validacao = validarTrocaAulas(this.banco.aulas, candidatas, [idOrigem, idDestino]);
+    if (!validacao.valido) {
+      const conflito = validacao.conflito;
+      const turmaConflitante = conflito
+        ? this.banco.turmas.find((item) => item.id === conflito.turmaId)
+        : null;
+      const horario = conflito
+        ? horarioDoPeriodo(this.banco.configuracao, conflito.periodo)
+        : null;
+      const detalhe =
+        conflito && horario
+          ? `Conflito com ${turmaConflitante?.nome ?? conflito.turmaId}, ${nomeDoDia(
+              conflito.diaSemana,
+            )}, ${conflito.periodo}ª aula (${horario.inicio}–${horario.fim}).`
+          : undefined;
+      throw new ErroDeServico(
+        'conflito-professor',
+        validacao.motivo ?? 'Conflito de horário detectado.',
+        detalhe,
+      );
+    }
+
+    const agora = new Date().toISOString();
+    const antesOrigem = this.descreverAula(aulaOrigem);
+    const antesDestino = aulaDestino ? this.descreverAula(aulaDestino) : null;
+
+    const conteudoOrigem = {
+      disciplinaId: aulaOrigem.disciplinaId,
+      professorId: aulaOrigem.professorId,
+    };
+    const conteudoDestino = aulaDestino
+      ? { disciplinaId: aulaDestino.disciplinaId, professorId: aulaDestino.professorId }
+      : null;
+
+    let aulaMovida: Aula;
+    if (aulaDestino) {
+      aulaOrigem.disciplinaId = conteudoDestino?.disciplinaId ?? aulaOrigem.disciplinaId;
+      aulaOrigem.professorId = conteudoDestino?.professorId ?? aulaOrigem.professorId;
+      aulaOrigem.atualizadoEm = agora;
+
+      aulaDestino.disciplinaId = conteudoOrigem.disciplinaId;
+      aulaDestino.professorId = conteudoOrigem.professorId;
+      aulaDestino.atualizadoEm = agora;
+      aulaMovida = aulaDestino;
+    } else {
+      aulaMovida = {
+        ...aulaOrigem,
+        id: idDestino,
+        diaSemana: destino.diaSemana,
+        periodo: destino.periodo,
+        atualizadoEm: agora,
+      };
+      this.banco.aulas = this.banco.aulas.filter((aula) => aula.id !== idOrigem);
+      this.banco.aulas.push(aulaMovida);
+    }
+
+    if (aulaDestino) {
+      this.banco.historico.push({
+        id: gerarId('hist'),
+        tipo: 'aula',
+        entidade: 'Aula',
+        entidadeId: aulaOrigem.id,
+        descricao: `Troca de posição de aula na turma ${turma.nome}`,
+        alteracao: {
+          antes: antesOrigem,
+          depois: this.descreverAula(aulaOrigem),
+        },
+        responsavelId: responsavel.uid,
+        responsavelNome: responsavel.nome,
+        timestamp: agora,
+      });
+      this.banco.historico.push({
+        id: gerarId('hist'),
+        tipo: 'aula',
+        entidade: 'Aula',
+        entidadeId: aulaDestino.id,
+        descricao: `Troca de posição de aula na turma ${turma.nome}`,
+        alteracao: {
+          antes: antesDestino ?? {},
+          depois: this.descreverAula(aulaDestino),
+        },
+        responsavelId: responsavel.uid,
+        responsavelNome: responsavel.nome,
+        timestamp: agora,
+      });
+    } else {
+      this.banco.historico.push({
+        id: gerarId('hist'),
+        tipo: 'aula',
+        entidade: 'Aula',
+        entidadeId: aulaMovida.id,
+        descricao: `Aula movida de posição na turma ${turma.nome}`,
+        alteracao: {
+          antes: antesOrigem,
+          depois: this.descreverAula(aulaMovida),
+        },
+        responsavelId: responsavel.uid,
+        responsavelNome: responsavel.nome,
+        timestamp: agora,
+      });
+    }
+
+    const mensagem = aulaDestino
+      ? `Duas aulas da turma ${turma.nome} foram trocadas de posição: ${nomeDoDia(
+          origem.diaSemana,
+        )}, ${origem.periodo}ª aula ↔ ${nomeDoDia(destino.diaSemana)}, ${destino.periodo}ª aula.`
+      : `Uma aula da turma ${turma.nome} foi movida para ${nomeDoDia(
+          destino.diaSemana,
+        )}, ${destino.periodo}ª aula.`;
+
+    this.banco.favoritos
+      .filter((favorito) => favorito.turmaId === turma.id)
+      .forEach((favorito) => {
+        this.banco.notificacoes.push({
+          id: gerarId('notif'),
+          uid: favorito.uid,
+          turmaId: turma.id,
+          titulo: aulaDestino ? 'Aulas trocadas' : 'Aula movida',
+          mensagem,
+          lida: false,
+          criadoEm: agora,
+        });
+      });
+
+    this.persistir();
   }
 
   async salvarConfiguracao(

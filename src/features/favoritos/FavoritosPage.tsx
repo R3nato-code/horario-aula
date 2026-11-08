@@ -1,6 +1,5 @@
 import { CabecalhoPagina } from '@/components/ui/CabecalhoPagina';
 import { EstadoCarregando, EstadoErro, EstadoVazio } from '@/components/ui/Estados';
-import { Alerta } from '@/components/ui/Alerta';
 import { Icone } from '@/components/Icone';
 import { useConsulta } from '@/app/useConsulta';
 import { useServicos } from '@/app/ContextoServicos';
@@ -66,6 +65,7 @@ export function FavoritosPage() {
                     <a
                       className="turma-cartao__nome turma-cartao__link"
                       href={`#/consulta/turma/${turma.id}`}
+                      aria-label={`Ver horário da turma ${turma.nome}`}
                     >
                       {turma.nome}
                     </a>
@@ -85,10 +85,13 @@ export function FavoritosPage() {
                   </button>
                 </div>
                 <div className="turma-cartao__rodape">
-                  <a className="botao botao--fantasma botao--pequeno" href={`#/consulta/turma/${turma.id}`}>
+                  <span
+                    className="botao botao--fantasma botao--pequeno turma-cartao__atalho"
+                    aria-hidden="true"
+                  >
                     Ver horário
                     <Icone nome="seta-direita" tamanho={14} />
-                  </a>
+                  </span>
                   <span className="selo selo--ativo">Favorita</span>
                 </div>
               </article>
@@ -96,13 +99,6 @@ export function FavoritosPage() {
           </div>
         )
       ) : null}
-
-      <div style={{ marginTop: '24px' }}>
-        <Alerta tipo="info" titulo="Escopo dos favoritos">
-          Nesta versão, somente turmas podem ser favoritadas. Os favoritos são isolados por
-          usuário e não são compartilhados entre contas.
-        </Alerta>
-      </div>
     </>
   );
 }

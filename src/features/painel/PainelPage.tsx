@@ -1,6 +1,5 @@
 import { CabecalhoPagina } from '@/components/ui/CabecalhoPagina';
 import { EstadoCarregando, EstadoErro, EstadoVazio } from '@/components/ui/Estados';
-import { Alerta } from '@/components/ui/Alerta';
 import { Icone } from '@/components/Icone';
 import { useAutenticacao } from '@/app/ContextoAutenticacao';
 import { useConsulta } from '@/app/useConsulta';
@@ -64,7 +63,7 @@ export function PainelPage() {
               <div className="indicador">
                 <span className="indicador__rotulo">Turmas ativas</span>
                 <span className="indicador__valor">{turmasAtivas.length}</span>
-                <span className="indicador__nota">de 14 turmas previstas</span>
+                <span className="indicador__nota">no catálogo atual</span>
               </div>
               <div className="indicador indicador--areia">
                 <span className="indicador__rotulo">Professores ativos</span>
@@ -74,7 +73,7 @@ export function PainelPage() {
               <div className="indicador indicador--azul">
                 <span className="indicador__rotulo">Disciplinas ativas</span>
                 <span className="indicador__valor">{disciplinasAtivas.length}</span>
-                <span className="indicador__nota">nomes preservados da fonte</span>
+                <span className="indicador__nota">disponíveis para a grade</span>
               </div>
               <div className="indicador indicador--argila">
                 <span className="indicador__rotulo">Aulas na semana</span>
@@ -176,12 +175,6 @@ export function PainelPage() {
               )}
             </div>
           </section>
-
-          <Alerta tipo="aviso" titulo="Operações administrativas protegidas">
-            Ocultar telas no front-end é somente usabilidade. Toda operação administrativa deve ser
-            validada pelas Cloud Functions e pelas regras do Firestore. A edição em massa depende
-            da definição de limites e atomicidade (LAC-05) e ainda não está habilitada.
-          </Alerta>
         </div>
       ) : null}
     </>

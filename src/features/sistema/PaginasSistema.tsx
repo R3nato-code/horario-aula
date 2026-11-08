@@ -10,7 +10,7 @@ export function AcessoNegadoPage() {
       <CabecalhoPagina sobretitulo="Permissões" titulo="Acesso restrito" />
       <EstadoVazio
         titulo="Esta área é administrativa"
-        texto="Seu perfil não possui permissão de interface para esta operação. A autorização definitiva é aplicada pelo servidor e pelas regras do Firestore."
+        texto="Seu perfil não tem permissão para acessar esta área. Se precisar de acesso, fale com a administração."
         acao={
           <a className="botao botao--pequeno" href="#/consulta">
             <Icone nome="seta-esquerda" tamanho={15} />

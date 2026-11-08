@@ -6,7 +6,6 @@ import type {
 } from '@/types/dominio';
 import { CabecalhoPagina } from '@/components/ui/CabecalhoPagina';
 import { EstadoCarregando, EstadoErro, EstadoVazio } from '@/components/ui/Estados';
-import { Alerta } from '@/components/ui/Alerta';
 import { Icone } from '@/components/Icone';
 import { useConsulta } from '@/app/useConsulta';
 import { useServicos } from '@/app/ContextoServicos';
@@ -158,12 +157,6 @@ export function HistoricoPage() {
               ))}
             </div>
           )}
-
-          <Alerta tipo="info" titulo="Proteção e retenção">
-            O histórico deve impedir edição e exclusão por administradores comuns (RF22). As regras
-            de acesso e o prazo de retenção dependem de LAC-10. O registro de alterações de
-            cadastros depende de LAC-11.
-          </Alerta>
         </div>
       ) : null}
     </>

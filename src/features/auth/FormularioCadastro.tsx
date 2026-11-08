@@ -249,9 +249,8 @@ export function FormularioCadastro({ aoEntrar }: Props) {
       </p>
 
       <p className="login__nota">
-        Ao criar a conta por e-mail, o servidor registra seu perfil com o papel de aluno.
-        Perfis de professor, administração e gestão são atribuídos pela secretaria. A
-        autorização definitiva é sempre validada no servidor.
+        Contas criadas por e-mail começam com perfil de aluno. Perfis de professor,
+        administração e gestão são atribuídos pela secretaria.
       </p>
     </form>
   );

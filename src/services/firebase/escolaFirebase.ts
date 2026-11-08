@@ -33,6 +33,7 @@ import type {
 import type {
   EntradaAula,
   EntradaSalvarCadastro,
+  EntradaTrocaAulas,
   FiltroAulas,
   FiltroHistorico,
   ServicoEscola,
@@ -51,7 +52,7 @@ import {
   textoNaoVazio,
 } from '@/lib/firebase/conversoes';
 import { criarIdAula, horarioDoPeriodo } from '@/lib/utilidades';
-import { validarConflitoHorario } from '@/services/validacao';
+import { validarConflitoHorario, validarTrocaAulas } from '@/services/validacao';
 
 interface MensagemTraduzida {
   codigo: CodigoErroServico;
@@ -176,6 +177,20 @@ function mapearAula(
     professorNome: professores.get(professorId) ?? 'Professor removido',
     inicio: horario.inicio,
     fim: horario.fim,
+  };
+}
+
+/** Converte dados brutos de um documento de `aulas` para o modelo de domínio. */
+function aulaDoDocumento(id: string, dados: DocumentData | undefined): Aula {
+  const valores = dados ?? {};
+  return {
+    id,
+    turmaId: texto(valores.turmaId),
+    diaSemana: diaSemanaValido(valores.diaSemana) ?? 1,
+    periodo: periodoValido(valores.periodo) ?? 1,
+    disciplinaId: texto(valores.disciplinaId),
+    professorId: texto(valores.professorId),
+    atualizadoEm: paraIso(valores.atualizadoEm) || paraIso(valores.criadoEm),
   };
 }
 
@@ -409,24 +424,12 @@ export class EscolaFirebase implements ServicoEscola {
         );
 
         const aulasExistentes: Aula[] = [
-          ...aulasTurma.docs.map((d) => ({
-            id: d.id,
-            turmaId: texto(d.data().turmaId),
-            diaSemana: diaSemanaValido(d.data().diaSemana) ?? 1,
-            periodo: periodoValido(d.data().periodo) ?? 1,
-            disciplinaId: texto(d.data().disciplinaId),
-            professorId: texto(d.data().professorId),
-            atualizadoEm: paraIso(d.data().atualizadoEm) || '',
-          })),
-          ...aulasProfessor.docs.map((d) => ({
-            id: d.id,
-            turmaId: texto(d.data().turmaId),
-            diaSemana: diaSemanaValido(d.data().diaSemana) ?? 1,
-            periodo: periodoValido(d.data().periodo) ?? 1,
-            disciplinaId: texto(d.data().disciplinaId),
-            professorId: texto(d.data().professorId),
-            atualizadoEm: paraIso(d.data().atualizadoEm) || '',
-          })),
+          ...aulasTurma.docs.map((documento) =>
+            aulaDoDocumento(documento.id, documento.data()),
+          ),
+          ...aulasProfessor.docs.map((documento) =>
+            aulaDoDocumento(documento.id, documento.data()),
+          ),
         ];
 
         // 2. Validar conflito antes de gravar.
@@ -504,6 +507,247 @@ export class EscolaFirebase implements ServicoEscola {
           professorId: entrada.professorId,
           atualizadoEm: new Date().toISOString(),
         };
+      });
+    } catch (erro) {
+      if (ehErroDeServico(erro)) throw erro;
+      throw traduzirErroFirestore(erro);
+    }
+  }
+
+  async trocarAulas(entrada: EntradaTrocaAulas, responsavel: Usuario): Promise<void> {
+    const idOrigem = criarIdAula(
+      entrada.turmaId,
+      entrada.origem.diaSemana,
+      entrada.origem.periodo,
+    );
+    const idDestino = criarIdAula(
+      entrada.turmaId,
+      entrada.destino.diaSemana,
+      entrada.destino.periodo,
+    );
+
+    if (idOrigem === idDestino) {
+      throw new ErroDeServico('validacao', 'Selecione uma célula diferente para receber a aula.');
+    }
+
+    try {
+      await runTransaction(this.db, async (transacao) => {
+        const refOrigem = doc(this.db, 'aulas', idOrigem);
+        const refDestino = doc(this.db, 'aulas', idDestino);
+
+        const snapOrigem = await transacao.get(refOrigem);
+        if (!snapOrigem.exists()) {
+          throw new ErroDeServico('validacao', 'A célula de origem não possui aula para mover.');
+        }
+        const snapDestino = await transacao.get(refDestino);
+
+        const aulaOrigem = aulaDoDocumento(idOrigem, snapOrigem.data());
+        const aulaDestino = snapDestino.exists()
+          ? aulaDoDocumento(idDestino, snapDestino.data())
+          : null;
+
+        if (
+          aulaDestino &&
+          aulaDestino.disciplinaId === aulaOrigem.disciplinaId &&
+          aulaDestino.professorId === aulaOrigem.professorId
+        ) {
+          return;
+        }
+
+        const snapTurma = await transacao.get(doc(this.db, 'turmas', entrada.turmaId));
+        if (!snapTurma.exists()) {
+          throw new ErroDeServico('nao-encontrado', 'Turma não encontrada.');
+        }
+        if (texto(snapTurma.data()?.status) === 'arquivado') {
+          throw new ErroDeServico(
+            'validacao',
+            'A turma está arquivada e não pode receber alterações de horário.',
+          );
+        }
+
+        // A consulta de conflitos usa `getDocs` (o SDK do cliente não aceita
+        // `Query` em `Transaction.get`), seguindo o mesmo padrão de
+        // `salvarAula`. A gravação dos dois slots permanece atômica.
+        const professores = new Set([aulaOrigem.professorId]);
+        if (aulaDestino) professores.add(aulaDestino.professorId);
+
+        const aulasExistentes = new Map<string, Aula>();
+        const incluir = (documentos: QueryDocumentSnapshot<DocumentData>[]) => {
+          documentos.forEach((documento) => {
+            aulasExistentes.set(
+              documento.id,
+              aulaDoDocumento(documento.id, documento.data()),
+            );
+          });
+        };
+
+        const aulasTurma = await getDocs(
+          query(
+            collection(this.db, 'aulas'),
+            where('turmaId', '==', entrada.turmaId),
+            limit(500),
+          ),
+        );
+        incluir(aulasTurma.docs);
+
+        for (const professorId of professores) {
+          const aulasProfessor = await getDocs(
+            query(
+              collection(this.db, 'aulas'),
+              where('professorId', '==', professorId),
+              limit(500),
+            ),
+          );
+          incluir(aulasProfessor.docs);
+        }
+
+        const candidatas: Aula[] = [
+          {
+            ...aulaOrigem,
+            id: idDestino,
+            diaSemana: entrada.destino.diaSemana,
+            periodo: entrada.destino.periodo,
+          },
+        ];
+        if (aulaDestino) {
+          candidatas.push({
+            ...aulaDestino,
+            id: idOrigem,
+            diaSemana: entrada.origem.diaSemana,
+            periodo: entrada.origem.periodo,
+          });
+        }
+
+        const validacao = validarTrocaAulas(
+          [...aulasExistentes.values()],
+          candidatas,
+          [idOrigem, idDestino],
+        );
+        if (!validacao.valido) {
+          const conflito = validacao.conflito;
+          throw new ErroDeServico(
+            'conflito-professor',
+            validacao.motivo ?? 'Conflito de horário detectado.',
+            conflito
+              ? `Conflito com aula ${conflito.id} (${conflito.diaSemana}/${conflito.periodo}).`
+              : undefined,
+          );
+        }
+
+        const antesOrigem = {
+          turmaId: aulaOrigem.turmaId,
+          diaSemana: aulaOrigem.diaSemana,
+          periodo: aulaOrigem.periodo,
+          disciplinaId: aulaOrigem.disciplinaId,
+          professorId: aulaOrigem.professorId,
+        };
+        const antesDestino = aulaDestino
+          ? {
+              turmaId: aulaDestino.turmaId,
+              diaSemana: aulaDestino.diaSemana,
+              periodo: aulaDestino.periodo,
+              disciplinaId: aulaDestino.disciplinaId,
+              professorId: aulaDestino.professorId,
+            }
+          : null;
+
+        if (aulaDestino) {
+          transacao.set(refOrigem, {
+            turmaId: entrada.turmaId,
+            diaSemana: entrada.origem.diaSemana,
+            periodo: entrada.origem.periodo,
+            disciplinaId: aulaDestino.disciplinaId,
+            professorId: aulaDestino.professorId,
+            criadoEm: snapOrigem.data()?.criadoEm ?? serverTimestamp(),
+            atualizadoEm: serverTimestamp(),
+          });
+          transacao.set(refDestino, {
+            turmaId: entrada.turmaId,
+            diaSemana: entrada.destino.diaSemana,
+            periodo: entrada.destino.periodo,
+            disciplinaId: aulaOrigem.disciplinaId,
+            professorId: aulaOrigem.professorId,
+            criadoEm: snapDestino.data()?.criadoEm ?? serverTimestamp(),
+            atualizadoEm: serverTimestamp(),
+          });
+
+          const refHistoricoOrigem = doc(collection(this.db, 'historico'));
+          transacao.set(
+            refHistoricoOrigem,
+            montarRegistroHistorico(
+              'aula',
+              'aulas',
+              idOrigem,
+              `Troca de posição de aula na turma "${entrada.turmaId}" (${entrada.origem.diaSemana}/${entrada.origem.periodo} ↔ ${entrada.destino.diaSemana}/${entrada.destino.periodo}).`,
+              {
+                antes: antesOrigem,
+                depois: {
+                  turmaId: entrada.turmaId,
+                  diaSemana: entrada.origem.diaSemana,
+                  periodo: entrada.origem.periodo,
+                  disciplinaId: aulaDestino.disciplinaId,
+                  professorId: aulaDestino.professorId,
+                },
+              },
+              responsavel,
+            ),
+          );
+
+          const refHistoricoDestino = doc(collection(this.db, 'historico'));
+          transacao.set(
+            refHistoricoDestino,
+            montarRegistroHistorico(
+              'aula',
+              'aulas',
+              idDestino,
+              `Troca de posição de aula na turma "${entrada.turmaId}" (${entrada.destino.diaSemana}/${entrada.destino.periodo} ↔ ${entrada.origem.diaSemana}/${entrada.origem.periodo}).`,
+              {
+                antes: antesDestino ?? {},
+                depois: {
+                  turmaId: entrada.turmaId,
+                  diaSemana: entrada.destino.diaSemana,
+                  periodo: entrada.destino.periodo,
+                  disciplinaId: aulaOrigem.disciplinaId,
+                  professorId: aulaOrigem.professorId,
+                },
+              },
+              responsavel,
+            ),
+          );
+        } else {
+          transacao.set(refDestino, {
+            turmaId: entrada.turmaId,
+            diaSemana: entrada.destino.diaSemana,
+            periodo: entrada.destino.periodo,
+            disciplinaId: aulaOrigem.disciplinaId,
+            professorId: aulaOrigem.professorId,
+            criadoEm: serverTimestamp(),
+            atualizadoEm: serverTimestamp(),
+          });
+          transacao.delete(refOrigem);
+
+          const refHistorico = doc(collection(this.db, 'historico'));
+          transacao.set(
+            refHistorico,
+            montarRegistroHistorico(
+              'aula',
+              'aulas',
+              idDestino,
+              `Aula da turma "${entrada.turmaId}" movida de ${entrada.origem.diaSemana}/${entrada.origem.periodo} para ${entrada.destino.diaSemana}/${entrada.destino.periodo}.`,
+              {
+                antes: antesOrigem,
+                depois: {
+                  turmaId: entrada.turmaId,
+                  diaSemana: entrada.destino.diaSemana,
+                  periodo: entrada.destino.periodo,
+                  disciplinaId: aulaOrigem.disciplinaId,
+                  professorId: aulaOrigem.professorId,
+                },
+              },
+              responsavel,
+            ),
+          );
+        }
       });
     } catch (erro) {
       if (ehErroDeServico(erro)) throw erro;

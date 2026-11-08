@@ -214,9 +214,8 @@ export function ArquivadosPage() {
 
           <div style={{ marginTop: '24px' }}>
             <Alerta tipo="aviso" titulo="Exclusão definitiva">
-              A exclusão só é permitida quando não há aulas vinculadas. O histórico e as
-              referências descritivas de registros antigos devem ser preservados. O histórico de
-              alterações de cadastros permanece pendente de definição (LAC-11).
+              A exclusão só é permitida quando não há aulas vinculadas. O histórico de alterações
+              é preservado.
             </Alerta>
           </div>
         </>

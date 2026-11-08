@@ -488,6 +488,7 @@
 
 /* Consulta ---------------------------------------------------------------- */
 .turma-cartao {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--e2);
@@ -495,11 +496,16 @@
   border: 1px solid var(--linha);
   border-left: 3px solid var(--verde-forte);
   background-color: var(--superficie-elevada);
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .turma-cartao:hover {
   border-color: var(--linha-forte);
   background-color: #fcfcf8;
+}
+
+.turma-cartao:active {
+  background-color: var(--superficie-verde);
 }
 
 .turma-cartao--tecnico {
@@ -525,8 +531,26 @@
   text-decoration: none;
 }
 
+/* Toda a área do cartão abre o horário. O link cobre o cartão por um
+   pseudo-elemento, e os controles internos ficam acima dessa camada. */
+.turma-cartao__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 .turma-cartao__link:hover {
   text-decoration: underline;
+}
+
+.turma-cartao__link:focus-visible {
+  outline: none;
+}
+
+.turma-cartao__link:focus-visible::after {
+  outline: 2px solid var(--foco);
+  outline-offset: -3px;
 }
 
 .turma-cartao__meta {
@@ -544,7 +568,18 @@
   border-top: 1px solid var(--linha);
 }
 
+.turma-cartao__atalho {
+  pointer-events: none;
+}
+
+.turma-cartao:hover .turma-cartao__atalho {
+  border-color: var(--linha);
+  background-color: var(--superficie-verde);
+}
+
 .favorito-botao {
+  position: relative;
+  z-index: 2;
   display: inline-grid;
   place-items: center;
   width: 32px;
@@ -565,6 +600,13 @@
   border-color: var(--areia-forte);
   background-color: var(--areia);
   color: var(--areia-forte);
+}
+
+@media (max-width: 720px) {
+  .favorito-botao {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .grade-turmas {
@@ -717,6 +759,34 @@
   background-color: var(--areia);
 }
 
+.celula-arrastavel {
+  position: relative;
+  display: block;
+  height: 100%;
+}
+
+.celula-arrastavel[draggable='true'] {
+  cursor: grab;
+}
+
+.celula-arrastavel[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.celula-arrastavel--arrastando {
+  opacity: 0.45;
+}
+
+.celula-arrastavel--alvo {
+  outline: 2px dashed var(--verde-forte);
+  outline-offset: -3px;
+  background-color: var(--superficie-verde);
+}
+
+.celula-arrastavel--alvo .celula-aula--vazia {
+  color: var(--tinta-media);
+}
+
 .linha-intervalo td {
   padding: 7px var(--e3);
   border-bottom: 1px solid var(--linha-forte);
@@ -752,60 +822,170 @@
   display: none;
 }
 
+.dia-movel {
+  border: 1px solid var(--linha-forte);
+  background-color: var(--superficie);
+}
+
 .dia-movel + .dia-movel {
   margin-top: var(--e4);
 }
 
 .dia-movel__titulo {
-  margin-bottom: var(--e2);
-  padding-bottom: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e2);
+  padding: 8px var(--e3);
   border-bottom: 1px solid var(--linha-forte);
+  border-left: 3px solid var(--verde-forte);
+  background-color: var(--superficie-verde);
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.aula-movel {
-  display: grid;
-  grid-template-columns: 84px 1fr;
-  gap: var(--e3);
-  padding: 9px 0;
-  border-bottom: 1px solid var(--linha);
+.dia-movel__contagem {
+  color: var(--tinta-suave);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 
-.aula-movel:last-child {
-  border-bottom: 0;
+.dia-movel__aulas {
+  display: grid;
+  gap: var(--e2);
+  padding: var(--e2);
+}
+
+.aula-movel {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px var(--e3);
+  width: 100%;
+  margin: 0;
+  padding: 10px var(--e3);
+  border: 1px solid var(--linha);
+  border-left: 3px solid var(--azul-forte);
+  background-color: var(--superficie-elevada);
+  text-align: left;
 }
 
 .aula-movel__horario {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   color: var(--tinta-suave);
   font-size: 0.74rem;
   font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.aula-movel__periodo {
+  color: var(--tinta-media);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.aula-movel__faixa {
+  white-space: nowrap;
+}
+
+.aula-movel__conteudo {
+  min-width: 0;
 }
 
 .aula-movel__disciplina {
   display: block;
-  font-size: 0.84rem;
+  font-size: 0.88rem;
   font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .aula-movel__professor {
   display: block;
   color: var(--tinta-suave);
   font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.aula-movel__acao {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-left: 1px solid var(--linha);
+  color: var(--tinta-suave);
+}
+
+.aula-movel--vazia {
+  border-left-color: var(--linha-forte);
+  border-style: dashed;
+  background-color: var(--superficie);
+}
+
+.aula-movel--vazia .aula-movel__disciplina {
+  color: var(--tinta-suave);
+  font-style: italic;
+  font-weight: 500;
 }
 
 .aula-movel--intervalo {
+  border-left-color: var(--areia-forte);
+  border-style: solid;
   background-color: var(--areia);
-  margin: 0 calc(var(--e2) * -1);
-  padding-left: var(--e2);
-  padding-right: var(--e2);
+}
+
+.aula-movel--intervalo .aula-movel__periodo,
+.aula-movel--intervalo .aula-movel__disciplina {
+  color: #66542f;
+}
+
+.aula-movel--intervalo .aula-movel__faixa {
   color: var(--aviso);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+}
+
+.aula-movel--editavel {
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.aula-movel--editavel:hover {
+  border-left-color: var(--verde-forte);
+  background-color: var(--superficie-verde);
+}
+
+.aula-movel--editavel:active {
+  background-color: var(--verde);
+}
+
+.aula-movel--editavel:focus-visible {
+  outline-offset: -2px;
+}
+
+.aula-movel[draggable='true'] {
+  cursor: grab;
+}
+
+.aula-movel[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.aula-movel--arrastando {
+  opacity: 0.45;
+}
+
+.aula-movel--alvo {
+  outline: 2px dashed var(--verde-forte);
+  outline-offset: -2px;
+  background-color: var(--superficie-verde);
 }
 
 @media (max-width: 720px) {
@@ -867,10 +1047,37 @@
 }
 
 .aula-cartao {
+  position: relative;
   padding: var(--e3);
   border: 1px solid var(--linha);
   border-top: 3px solid var(--azul-forte);
   background-color: var(--superficie-elevada);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.aula-cartao--clicavel:hover {
+  border-color: var(--linha-forte);
+  background-color: #fcfcf8;
+}
+
+.aula-cartao--clicavel:active {
+  background-color: var(--superficie-verde);
+}
+
+.aula-cartao__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.aula-cartao__link:focus-visible {
+  outline: none;
+}
+
+.aula-cartao__link:focus-visible::after {
+  outline: 2px solid var(--foco);
+  outline-offset: -3px;
 }
 
 .aula-cartao__horario {
@@ -902,6 +1109,88 @@
 
   .lista-professores {
     max-height: 260px;
+  }
+}
+
+/* Lista de professores em cartões no celular ----------------------------- */
+@media (max-width: 700px) {
+  .tabela--professores {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tabela--professores thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .tabela--professores tbody {
+    display: grid;
+    gap: var(--e2);
+    padding: var(--e2);
+    background-color: var(--superficie);
+  }
+
+  .tabela--professores tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "nome numero"
+      "acao acao";
+    align-items: center;
+    gap: 4px var(--e3);
+    padding: var(--e3) var(--e4);
+    border: 1px solid var(--linha);
+    border-left: 3px solid var(--azul-forte);
+    background-color: var(--superficie-elevada);
+  }
+
+  .tabela--professores tbody tr:hover {
+    background-color: #fcfcf8;
+  }
+
+  .tabela--professores tbody tr:active {
+    background-color: var(--superficie-verde);
+  }
+
+  .tabela--professores th,
+  .tabela--professores td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .tabela--professores th[scope="row"] {
+    grid-area: nome;
+    font-family: var(--fonte-titulo);
+    font-size: 1.12rem;
+    line-height: 1.2;
+  }
+
+  .tabela--professores td.tabela__numero {
+    grid-area: numero;
+    color: var(--tinta-suave);
+    font-size: 0.76rem;
+    text-align: right;
+  }
+
+  .tabela--professores td.tabela__numero::after {
+    content: " aulas/semana";
+  }
+
+  .tabela--professores td:last-child {
+    grid-area: acao;
+  }
+
+  .tabela--professores .tabela__acoes {
+    justify-content: flex-start;
   }
 }
 

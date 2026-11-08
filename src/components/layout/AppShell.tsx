@@ -227,7 +227,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="barra-lateral__rodape">
-          <span>{modo === 'demo' ? 'Ambiente de demonstração' : 'Ambiente Firebase'}</span>
+          <span>{modo === 'demo' ? 'Ambiente de demonstração' : 'Ambiente de produção'}</span>
           <br />
           <span>Versão 0.1.0</span>
         </div>
@@ -238,8 +238,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="faixa-modo">
             <Icone nome="info" tamanho={14} />
             <span>
-              <strong>Demonstração</strong> — dados locais, sem autenticação real. Alterações não
-              são gravadas no Firestore.
+              <strong>Demonstração</strong> — as alterações feitas neste ambiente não são salvas
+              permanentemente.
             </span>
           </div>
         ) : null}

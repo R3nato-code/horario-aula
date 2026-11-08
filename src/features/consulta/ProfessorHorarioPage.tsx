@@ -104,12 +104,16 @@ export function ProfessorHorarioPage({ professorId }: Props) {
               </div>
               <div className="aulas-professor">
                 {aulas.map((aula) => (
-                  <article className="aula-cartao" key={aula.id}>
+                  <article className="aula-cartao aula-cartao--clicavel" key={aula.id}>
                     <span className="aula-cartao__horario">
                       {aula.periodo}ª aula · {aula.inicio}–{aula.fim}
                     </span>
                     <span className="aula-cartao__disciplina">{aula.disciplinaNome}</span>
-                    <a className="aula-cartao__turma" href={`#/consulta/turma/${aula.turmaId}`}>
+                    <a
+                      className="aula-cartao__turma aula-cartao__link"
+                      href={`#/consulta/turma/${aula.turmaId}`}
+                      aria-label={`Ver horário da turma ${aula.turmaNome}`}
+                    >
                       Turma {aula.turmaNome}
                     </a>
                   </article>
